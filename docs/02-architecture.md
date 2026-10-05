@@ -110,19 +110,20 @@ Materialized views with a table comment, a column comment on every column, and i
 
 ```sql
 -- reviews from fact_review, nights and price from dim_listing, availability from fact_calendar
-reviews_l365d          = COUNT(*) FILTER (WHERE review_date >  snapshot_date - INTERVAL 365 DAYS
-                                            AND review_date <= snapshot_date)
+reviews_l365d          = COUNT(*) FILTER (WHERE review_date >= snapshot_date - 365 DAYS
+                                            AND review_date <= snapshot_date)   -- snapshot_date = the listing's last_scraped
 estimated_nights_l365d = LEAST(255, reviews_l365d * 2 * GREATEST(minimum_nights, 5.5))
 estimated_revenue_l365d = estimated_nights_l365d * nightly_price        -- NULL when price is NULL
-open_nights_next_90    = COUNT(*) FILTER (WHERE is_available AND calendar_date < snapshot_date + 90)
+open_nights_next_90    = COUNT(*) FILTER (WHERE is_available AND calendar_date >= snapshot_date
+                                            AND calendar_date < snapshot_date + 90)
 is_active              = reviews_l365d > 0 OR has_availability
 ```
 
-The nights formula is Inside Airbnb's published occupancy model: a 50 percent review rate, an average stay of 5.5 nights or the listing minimum if longer, capped at 70 percent occupancy (255 nights). Recomputed from `reviews.csv` it matches the file's `estimated_occupancy_l365d` for 99.9 percent of listings, and revenue matches for 100 percent of priced listings. That gives every revenue benchmark a gold answer that was published independently of our code.
+The nights formula is Inside Airbnb's published occupancy model: a 50 percent review rate, an average stay of 5.5 nights or the listing minimum if longer, capped at 70 percent occupancy (255 nights). Recomputed from `reviews.csv` with the window below it matches the file's `estimated_occupancy_l365d` for all 7,332 listings, and revenue matches within one dollar (the published figure is rounded to whole dollars) for all 5,932 priced listings. That gives every revenue benchmark a gold answer that was published independently of our code.
 
 The per-listing `LEAST` and `GREATEST` make the measure nonlinear, so it cannot be an aggregate over review rows inside a metric view. Pre-aggregating to listing grain in gold is the documented pattern for KPIs that span fact tables (metric view skill, Genie design rule 2) and keeps every metric view single-source.
 
-`snapshot_date` is the maximum `last_scraped` in the listings file (2026-06-22 for this snapshot) so that re-running on a new Inside Airbnb drop moves the window with the data.
+`snapshot_date` is each listing's own `last_scraped` (2026-06-14 for most, 2026-06-22 for the rest), and the 365-day window includes both ends. That is Inside Airbnb's window: anchoring on the latest scrape date for every listing matches only 95.1 percent of occupancy values, because most listings were scraped eight days earlier. The same per-listing date starts the calendar windows, so every listing has exactly 365 open plus blocked nights.
 
 ### 1.5 The PDFs
 

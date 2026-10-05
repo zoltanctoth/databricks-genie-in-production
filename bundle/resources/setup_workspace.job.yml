@@ -1,0 +1,20 @@
+# One-off job that copies the source files from the public S3 mirror into this
+# target's volumes. Run it once after the first deploy, before the pipeline:
+#   databricks bundle run setup_workspace -t <target> --profile <profile>
+#
+# A notebook task with no cluster spec runs on serverless jobs compute. The
+# volume paths come from the resources, so dev copies into
+# dev_<user>_raw and prod into raw.
+
+resources:
+  jobs:
+    setup_workspace:
+      name: setup_workspace
+      tasks:
+        - task_key: copy_source_files
+          notebook_task:
+            notebook_path: ../src/setup/setup_workspace.py
+            base_parameters:
+              cloud_source: s3a://dbx-data-public/airbnb-sf
+              files_path: /Volumes/${var.catalog}/${resources.schemas.source_schema.name}/${resources.volumes.files.name}/airbnb-sf
+              documents_path: /Volumes/${var.catalog}/${resources.schemas.source_schema.name}/${resources.volumes.documents.name}
