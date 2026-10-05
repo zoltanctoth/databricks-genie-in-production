@@ -160,7 +160,7 @@ flowchart LR
     subgraph PIPE["Lakeflow Spark Declarative Pipeline (serverless)"]
       B[bronze] --> S[silver] --> G[gold star schema<br/>comments + PK/FK]
     end
-    MV[Metric views<br/>mv_market, mv_reviews]
+    MV[Metric views<br/>market, availability,<br/>review_activity, compliance]
     JOB[Lakeflow Job<br/>pipeline -> metric view DDL -> PDF gen]
     GA[Genie Agent A<br/>SF Market Analyst<br/>Chat mode]
     GB[Genie Agent B<br/>Host Ops and Compliance<br/>Agent mode + PDFs]
@@ -189,10 +189,13 @@ flowchart LR
 
 | Table | Grain | Source | Notes |
 |---|---|---|---|
-| `dim_listing` | one row per listing | `listings.csv.gz` | Neighbourhood, room and property type, accommodates, amenities array, `price_usd`, review scores, `license`, `instant_bookable`. Primary key `listing_id`, foreign key `host_id`. |
-| `dim_host` | one row per host | derived from `listings.csv.gz` host columns | Superhost flag, response rate, `host_since`, portfolio size. Primary key `host_id`. |
-| `fact_calendar` | one row per listing per night, 365 nights | `calendar.csv.gz` | About 2.7 million rows. `available`, `price_usd`, minimum and maximum nights. Foreign key `listing_id`. |
-| `fact_review` | one row per review | summary `reviews.csv` | `listing_id` and `review_date` only. Foreign key `listing_id`. |
+| `dim_listing` | one row per listing | `listings.csv.gz` | 7,332 rows. Neighbourhood, room and property type, `is_hotel`, accommodates, amenities array, `nightly_price` (parsed from `$1,234.00` text, null for 19 percent), `minimum_nights`, `stay_type`, review scores, `license`, derived `license_status`. Primary key `listing_id`, foreign key `host_id`. |
+| `dim_host` | one row per host | derived from `listings.csv.gz` host columns | 3,499 rows. Superhost flag, identity verified, `host_tenure_years` (the 2026 export has no `host_since`, response rate or acceptance rate), portfolio size and size band. Primary key `host_id`. |
+| `fact_calendar` | one row per listing per night, 2026-06-14 to 2027-06-21 | `calendar.csv.gz` | About 2.68 million rows after dropping 90 orphan listings. `is_available`, minimum and maximum nights. **No price column in the 2026 export.** Foreign key `listing_id`. |
+| `fact_review` | one row per review | summary `reviews.csv` | 434,102 rows after dropping 4,197 orphan rows; same-day repeats are kept (they are distinct reviews). `listing_id` and `review_date` only. Foreign key `listing_id`. |
+| `fact_listing_activity` | one row per listing as of the snapshot | computed from `fact_review`, `fact_calendar` and `dim_listing` | 7,332 rows. Reviews in the trailing 365 days, estimated nights and revenue (Inside Airbnb occupancy model, reproduced to 99.9 percent), open nights next 90 and 365. The one table where the three source files meet; the source of `market_metrics` and `compliance_metrics`. Primary key `listing_id`. |
+
+Full column lists, silver rules and the derivation of `fact_listing_activity`: [02-architecture.md, section 1](02-architecture.md#1-data-pipeline).
 
 Every gold table gets column comments and informational primary and foreign key constraints, because Genie imports both. This is a deliberate teaching point: curation starts in Unity Catalog, not in the Genie UI.
 
@@ -200,23 +203,27 @@ Every gold table gets column comments and informational primary and foreign key 
 
 | Metric view | Source and joins | Measures (examples) | Teaches |
 |---|---|---|---|
-| `mv_market` | `fact_calendar` joined to `dim_listing`, nested join to `dim_host` | active listings, average nightly price, occupancy proxy (nights not available), booked nights, revenue proxy, average daily rate as a composed measure, superhost share, licensed share | Snowflake joins, composed measures via MEASURE(), FILTER measures, formats, synonyms |
-| `mv_review_activity` | `fact_review` joined to `dim_listing` and `dim_host` | reviews, trailing twelve month reviews, quarter over quarter change, reviews per listing | Window measures with `trailing` and `offset`, a second grain over the same dimensions |
-| `mv_market_eur` (optional) | `mv_market` as source | the same measures converted by an `eur_rate` parameter | Composability and parameters; shows that parameters block materialization |
+| `market_metrics` | `fact_listing_activity` joined to `dim_listing`, nested join to `dim_host` | listings, active listings, median and average nightly price, estimated booked nights and revenue (occupancy model), average daily rate and occupancy rate as composed measures, superhost share, average rating | Snowflake joins, composed measures via MEASURE(), FILTER measures, formats, synonyms, `rely` |
+| `availability_metrics` | `fact_calendar` joined to `dim_listing` and `dim_host` | open nights, blocked nights, open share, listings with any open night, average minimum stay, by calendar month | A second grain over the same dimensions; stating a forward-looking window in the view comment |
+| `review_activity_metrics` | `fact_review` joined to `dim_listing` and `dim_host` | reviews, reviewed listings, reviews per listing, trailing twelve month reviews, previous quarter, quarter over quarter change | Window measures with `trailing`, `offset` and `semiadditive`; date hierarchy on the order field |
+| `compliance_metrics` | same source and joins as `market_metrics` | short-term listings, registered listings, unregistered short-term listings, registration rate, entire homes over the 90-night cap, over-cap homes without a certificate, estimated revenue of unregistered listings | One view per KPI group on a shared source; FILTER measures that encode the ordinance |
+| `market_metrics_eur` (optional) | `market_metrics` as source | the money measures converted by an `eur_rate` parameter | Composability and parameters; shows that parameters block materialization |
+
+Revenue is no longer derived from the calendar: the 2026 export has no calendar price, and a blocked night is not a booking. YAML for each view: [02-architecture.md, section 3](02-architecture.md#3-metric-view-definitions). Names follow the `<subject>_metrics` convention (changed 2026-10-05 from `mv_*`).
 
 Deployment: a `.sql` file with `CREATE OR REPLACE VIEW ... WITH METRICS LANGUAGE YAML`, run by a job `sql_task` with `catalog` and `schema` parameters and `EXECUTE IMMEDIATE`, because the YAML `source` must be a fully qualified literal.
 
 ### 7.3 Genie Agents
 
-**Agent A, San Francisco Market Analyst (Chat mode).** Sources: `mv_market`, `mv_review_activity`, `dim_listing`. Curation plan, in the order Databricks recommends: UC comments and constraints first, then metric views, then SQL expressions (measures, filters, fields), then example SQL with parameters and usage guidance, then entity matching on `neighbourhood` and `room_type`, and only last a short General instructions block ("occupancy" means the proxy, how to handle ambiguous "last quarter", what "licensed" means). At least 20 benchmarks with gold SQL.
+**Agent A, San Francisco Market Analyst (Chat mode).** Sources: `market_metrics`, `availability_metrics`, `review_activity_metrics`, `dim_listing`. Curation plan, in the order Databricks recommends: UC comments and constraints first, then metric views, then SQL expressions (measures, filters, fields), then example SQL with parameters and usage guidance, then entity matching on `neighbourhood` and `room_type`, and only last a short General instructions block ("occupancy" means the proxy, how to handle ambiguous "last quarter", what "licensed" means). At least 20 benchmarks with gold SQL.
 
-**Agent B, Host Operations and Compliance (Agent mode).** Sources: `mv_market`, `dim_host`, `dim_listing`, plus the PDF volume. Questions mix tables and documents: "Which Mission District hosts with more than five listings have house rules that forbid parties, and how many of their listings are unlicensed?" Benchmarks in Agent mode use the LLM judge with evaluation notes.
+**Agent B, Host Operations and Compliance (Agent mode).** Sources: `compliance_metrics`, `dim_host`, `dim_listing`, plus the `documents` volume (32 PDFs). Questions mix tables and documents: "Which Mission District hosts with more than five listings have house rules that forbid parties, and how many of their listings are unlicensed?" Benchmarks in Agent mode use the LLM judge with evaluation notes. Neither agent sees bronze, silver or the raw fact tables; see [02-architecture.md, section 2](02-architecture.md#2-what-each-genie-agent-sees).
 
 ### 7.4 Serving
 
 **App 1, Genie chat.** Streamlit or the official `appkit-genie` template. User authorization with `user_api_scopes: [genie, sql]`, so queries run as the end user, row filters apply, and usage counts against the user's free allowance rather than a billed service principal.
 
-**App 2, orchestrator agent.** From the official `agent-openai-agents-sdk-multiagent` template. Each Genie Agent is attached as an MCP server at `/api/2.0/mcp/genie/{space_id}`. The orchestrator decides which agent answers, can call both, and merges. MLflow autologging produces traces. This is the pattern that replaces the Supervisor Agent for new customers.
+**App 2, orchestrator agent.** Routing rules, identity, tracing and evaluation design: [02-architecture.md, section 4](02-architecture.md#4-orchestrating-the-two-agents). From the official `agent-openai-agents-sdk-multiagent` template. Each Genie Agent is attached as an MCP server at `/api/2.0/mcp/genie/{space_id}`. The orchestrator decides which agent answers, can call both, and merges. MLflow autologging produces traces. This is the pattern that replaces the Supervisor Agent for new customers.
 
 ### 7.5 Bundle layout
 
@@ -289,12 +296,13 @@ No bundle-level `run_as`: it is forbidden when a model serving endpoint is in th
 | ID | Decision | Rationale |
 |---|---|---|
 | D1 | A standard Databricks workspace (Unity Catalog, serverless compute, any cloud) is the primary environment, with `dev` and `prod` as two bundle targets in that one workspace. Revised 2026-10-02; v0.2 had chosen Free Edition. | Free Edition has no on-demand clusters, which developing the streaming tables in Lakeflow Spark Declarative Pipelines needs. Students build in whatever workspace they have; nothing in the design depends on the cloud provider. |
-| D2 | San Francisco is the primary city (replacing the research appendix's Budapest recommendation); a second city is stretch. | Verified 2026-10-01: 7,422 listings, USD prices, three free snapshots (2025-12-04, 2026-03-16, 2026-06-14), listings 3.8 MB, calendar 6.1 MB (about 2.7 million rows), summary reviews 9 MB. Smaller than Budapest, no currency conversion, a `license` field with 63 percent licensed listings for a compliance metric, and well-documented short-term rental rules (under 30 nights) for the regulation PDF. |
+| D2 | San Francisco is the primary city (replacing the research appendix's Budapest recommendation); a second city is stretch. | Verified 2026-10-01, corrected 2026-10-05: 7,332 listings (7,422 is the calendar's listing count), USD prices, three free snapshots (2025-12-04, 2026-03-16, 2026-06-14), listings 3.8 MB, calendar 6.1 MB (about 2.7 million rows), summary reviews 9 MB. Smaller than Budapest, no currency conversion, a `license` field with 63 percent licensed listings for a compliance metric, and well-documented short-term rental rules (under 30 nights) for the regulation PDF. |
 | D3 | Supervisor Agent is out of scope; the orchestrator is hand-built on Databricks Apps with MCP. | Closed to new customers 2026-09-30; Apps is the documented default for new custom agents. |
 | D5 | Metric views are deployed by a job SQL task, not a bundle resource. | No bundle or Terraform resource exists as of 2026-09-17. The pattern follows the Databricks Community technical blog "How to Deploy Metric Views with DABs" (2025-11-13): a job whose tasks run the `CREATE VIEW ... WITH METRICS` DDL with catalog and schema passed as parameters and `EXECUTE IMMEDIATE`, because the YAML source must be a fully qualified literal. We use a `sql_task` with a `.sql` file instead of the blog's notebook tasks, and keep dashboards as native resources as the blog does. |
 | D6 | Genie Agent config lives in git as `.geniespace.json`, generated from the dev UI. | Only supported round trip; UI edits do not flow back automatically. |
 | D7 | Apps use user authorization, not the app service principal, for Genie calls. | Row filters apply, and service principal Genie usage is billed with no free allowance. |
 | D8 | Model Serving deployment is stretch, taught as "legacy but common". | Docs call it legacy for new agents; many clients still run it. |
+| D13 | Each bundle target owns its own schemas, and every resource refers to a schema through `${resources.schemas.<key>.name}`, never through the bare variable. | Decided 2026-10-05. `mode: development` prefixes schema names with `dev_<user>_` (dev publishes to `genie_reference.dev_<user>_airbnb`, prod to `genie_reference.airbnb`), so isolation is automatic. The earlier assumption that schemas are not prefixed was wrong; a variable-based path such as the pipeline's `source_path` must be built from the resource name or dev reads prod's schema. |
 
 ### 10.2 Open
 
@@ -305,6 +313,7 @@ No bundle-level `run_as`: it is forbidden when a model serving endpoint is in th
 | D10 | Benchmarks as a CI gate: is there an API to trigger a benchmark run and read scores? Not found in docs **[verify]**. | If not, build a small harness over the Conversation API comparing result sets to gold SQL, logged to MLflow. |
 | D11 | Where do measure definitions live when both metric views and Genie SQL expressions can hold them? | Proposed rule: anything reusable across tools goes in the metric view; Genie-only phrasing and filters go in SQL expressions. To be validated during the Genie Agents phase. |
 | D12 | Should the course show a second workspace as an optional cross-workspace promotion module? | Depends on access to a second workspace. |
+
 
 ## 11. Two-week plan
 
@@ -342,7 +351,7 @@ Likelihood and impact on a 1 to 3 scale. Score is their product.
 | R-15 | Unfamiliar or newly renamed surfaces slow the build beyond two weeks. | 2 | 2 | 4 | Day-by-day plan with exit criteria; stretch items pre-cut; use the official templates rather than writing apps from scratch. | Any phase slipping more than a day |
 | R-16 | Fast-moving Python packages (databricks-ai-bridge 0.22, databricks-openai 0.17, mlflow 3.16 as of Oct 2026) break templates. | 2 | 2 | 4 | Pin versions in `pyproject.toml`; follow the template pins. | Import errors |
 | R-17 | No account-level access to configure OIDC federation for CI (S2). | 2 | 1 | 2 | OAuth M2M with a workspace service principal, or "bundles in the workspace" UI deploy as the zero-secret alternative. | Day 11 |
-| R-18 | The `price` column is exported as text with a dollar sign and thousands separators; calendar prices can be null for unavailable nights. | 3 | 1 | 3 | Parse to numeric `price_usd` in silver; document null handling in the metric view comment; benchmark a price question early. | Benchmark failures on price |
+| R-18 | The `price` column is exported as text with a dollar sign and thousands separators; the 2026 calendar export has no price column at all. | 3 | 1 | 3 | Parse to `nightly_price` in silver (null for 19 percent); revenue comes from the occupancy model on `fact_listing_activity`, never from the calendar; benchmark a price question early. | Benchmark failures on price |
 
 ## 13. Open questions where practice matters more than documentation
 

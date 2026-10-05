@@ -3,11 +3,13 @@ resources:
     airbnb_pipeline:
       name: airbnb_pipeline
       catalog: ${var.catalog}
-      schema: ${var.schema}
+      schema: ${resources.schemas.schema.name}
       serverless: true
       continuous: false
+      # Read by the bronze SQL files as ${source_path}. The schema name comes from
+      # the resource, not the variable, so it carries the dev_<user>_ prefix in dev.
       configuration:
-        source_path: ${var.source_path}
+        source_path: /Volumes/${var.catalog}/${resources.schemas.source_schema.name}/files/airbnb-sf
       libraries:
         - glob:
             include: ../src/pipeline/**
