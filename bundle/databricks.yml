@@ -1,0 +1,76 @@
+bundle:
+  name: databricks-genie-in-production
+
+# Doesn't seen to be stable, commented out:
+# experimental:
+#  immutable_folder: true
+
+include:
+  - resources/*.yml
+  - scripts.yml
+
+# These scripts are to be run locally; keep them out of the workspace folder.
+sync:
+  exclude:
+    - scripts/**
+
+variables:
+  service_principal:
+    description: Service Principal Application ID.
+    default: 47d22b7a-8f16-43cb-93c5-590e5d89e8b9 # Production App ID
+  catalog: # !! This catalog must be created through the UI as dev/prod share the same catalog.
+    description: Unity Catalog catalog shared by every target. Must be created through the UI as dev/prod share the same catalog.
+    default: genie_reference
+  source_schema:
+    description: Schema holding the raw CSV and PDF source files
+    default: raw
+  schema:
+    description: Schema the pipeline publishes bronze, silver and gold tables to
+    default: airbnb
+  source_path:
+    description: Volume folder holding the three Inside Airbnb CSV files
+    default: /Volumes/${var.catalog}/${var.source_schema}/files/airbnb-sf
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: adb-7405615411129521.1.azuredatabricks.net
+
+  prod:
+    mode: production
+    workspace:
+      host: adb-7405615411129521.1.azuredatabricks.net
+      root_path: /Workspace/Users/${var.service_principal}/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      # CAN_MANAGE happens automatically as we are deploying to the root_path of the service principal,
+      # but let's be explicit for clarity (and for the Warning message to go away).
+      - service_principal_name: ${var.service_principal}
+        level: CAN_MANAGE
+      # Production Managers group should have full control over the prod resources
+      - group_name: ${var.prod_managers_group_name}
+        level: CAN_MANAGE
+    resources:
+      schemas:
+        source_schema:
+          name: ${var.source_schema}
+          catalog_name: ${var.catalog}
+          grants:
+            - principal: ${var.service_principal}
+              privileges: [USE_SCHEMA, READ_VOLUME]
+        schema:
+          name: ${var.schema}
+          catalog_name: ${var.catalog}
+          grants:
+            - principal: ${var.service_principal}
+              privileges:
+                [
+                  USE_SCHEMA,
+                  CREATE_TABLE,
+                  CREATE_MATERIALIZED_VIEW,
+                  MODIFY,
+                  SELECT,
+                  READ_VOLUME,
+                  WRITE_VOLUME,
+                ]

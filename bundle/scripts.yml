@@ -1,0 +1,19 @@
+variables:
+  prod_managers_group_name:
+    description: Workspace group granted CAN_MANAGE on prod resources
+    default: prod_managers
+  prod_managers_group_member:
+    description: Email address of the group member
+    default: ""  # empty means the identity running the script
+
+scripts:
+  create_group:
+    env:
+      GROUP_NAME: ${var.prod_managers_group_name}
+    content: bash scripts/create_group.sh
+
+  add_group_member:
+    env:
+      GROUP_NAME: ${var.prod_managers_group_name}
+      GROUP_MEMBER: ${var.prod_managers_group_member}
+    content: bash scripts/add_group_member.sh

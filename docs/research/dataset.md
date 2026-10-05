@@ -1,6 +1,8 @@
 > Research appendix. Compiled 2026-10-01 from the official Databricks docs and cited sources by a research agent; every fact carries its source URL and the page "Last updated" date. Re-verify anything dated before you build on it.
+>
+> Platform note (2026-10-02): the build moved from Databricks Free Edition to a standard workspace (decision D1 in `docs/01-requirements-and-risks.md`). Free Edition limits quoted below are kept as research and no longer constrain the design.
 
-# Dataset research: Inside Airbnb on Databricks Free Edition (Genie Agents / metric views / bundles course)
+# Dataset research: Inside Airbnb on Databricks (Genie Agents / metric views / bundles course)
 
 Researched 2026-10-01 via live scrapes and HTTP HEAD requests. Sizes are `Content-Length` bytes from `data.insideairbnb.com`; listing counts are from Inside Airbnb "Explore" pages (June 2026 snapshot).
 

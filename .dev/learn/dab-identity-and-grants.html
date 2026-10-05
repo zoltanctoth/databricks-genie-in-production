@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Who Deploys, Who Runs, Who Owns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single reading column with wide "bench" blocks for the interactive
+   simulators. Principals carry a fixed hue everywhere on the page:
+   human = indigo, service principal = teal, bundle state = amber. */
+:root {
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --surface-2: #efede6;
+  --fg: #1d1f23;
+  --fg-2: #4e5361;
+  --line: #d8d5cb;
+  --human: #4a4fd1;
+  --human-bg: #e8e8fb;
+  --sp: #0f7f73;
+  --sp-bg: #dcf2ee;
+  --state: #b26a00;
+  --state-bg: #fbeedb;
+  --ok: #1d7a3e;
+  --ok-bg: #e0f3e6;
+  --no: #b3261e;
+  --no-bg: #fbe3e1;
+  --code-bg: #22252c;
+  --code-fg: #e6e6e1;
+  --code-hl: #3a3e4a;
+  --display: "Fraunces", Georgia, serif;
+  --body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171b; --surface: #1d2026; --surface-2: #242830; --fg: #e8e7e2; --fg-2: #a7aab4;
+    --line: #363a44; --human: #9a9ef5; --human-bg: #2a2c4a; --sp: #4fc5b6; --sp-bg: #173a36;
+    --state: #e3a24a; --state-bg: #3b2d16; --ok: #5ccf81; --ok-bg: #163a24; --no: #ff8a80; --no-bg: #44201d;
+    --code-bg: #0f1114; --code-fg: #e6e6e1; --code-hl: #2a2f3a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171b; --surface: #1d2026; --surface-2: #242830; --fg: #e8e7e2; --fg-2: #a7aab4;
+  --line: #363a44; --human: #9a9ef5; --human-bg: #2a2c4a; --sp: #4fc5b6; --sp-bg: #173a36;
+  --state: #e3a24a; --state-bg: #3b2d16; --ok: #5ccf81; --ok-bg: #163a24; --no: #ff8a80; --no-bg: #44201d;
+  --code-bg: #0f1114; --code-fg: #e6e6e1; --code-hl: #2a2f3a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); padding-block: 0 4rem; padding-inline: 16px; }
+.wrap { max-width: 52rem; margin: 0 auto; }
+.bench { max-width: 68rem; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); font-variation-settings: "opsz" 144; }
+h2 { font-size: 1.75rem; margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1.2rem; margin-top: 2rem; font-family: var(--body); font-weight: 600; }
+p, li { max-width: 65ch; }
+p { margin: 0.9rem 0; }
+.lede { font-size: 1.15rem; color: var(--fg-2); }
+.eyebrow { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-2); font-weight: 600; }
+header { padding-block: 3rem 1rem; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin: 1.5rem 0 0; padding: 0; list-style: none; font-size: 0.9rem; }
+nav.toc a { color: var(--fg-2); text-decoration: none; border-bottom: 1px solid var(--line); }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--fg); border-color: var(--fg); }
+a { color: inherit; }
+code, pre { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--surface-2); padding: 0.1em 0.35em; border-radius: 3px; }
+pre { background: var(--code-bg); color: var(--code-fg); padding: 1rem 1.1rem; border-radius: 6px; overflow-x: auto; line-height: 1.5; margin: 1rem 0; }
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+.pill { display: inline-block; font-size: 0.78rem; font-weight: 600; padding: 0.1em 0.55em; border-radius: 999px; white-space: nowrap; font-family: var(--body); }
+.pill.human { background: var(--human-bg); color: var(--human); }
+.pill.sp { background: var(--sp-bg); color: var(--sp); }
+.pill.state { background: var(--state-bg); color: var(--state); }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.no { background: var(--no-bg); color: var(--no); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 1rem 0; }
+.tablewrap { overflow-x: auto; }
+th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); font-weight: 600; }
+td code { white-space: nowrap; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin: 1.25rem 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; }
+.grid2 > * { min-width: 0; }
+.note { border-left: 3px solid var(--state); background: var(--state-bg); padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0; }
+.note p { margin: 0.3rem 0; }
+.lesson { border-left: 3px solid var(--human); background: var(--human-bg); padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0; }
+.lesson p { margin: 0.3rem 0; }
+label.chk { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.92rem; padding: 0.2rem 0; cursor: pointer; }
+label.chk input { margin: 0; transform: translateY(2px); }
+fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem 1rem 0.9rem; margin: 0; min-width: 0; }
+legend { font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); font-weight: 600; padding: 0 0.3rem; }
+.actions { display: grid; gap: 0.5rem; }
+.action { display: grid; grid-template-columns: auto 1fr; gap: 0.6rem; align-items: start; padding: 0.6rem 0.75rem; border-radius: 6px; background: var(--surface-2); font-size: 0.92rem; }
+.action .why { color: var(--fg-2); font-size: 0.85rem; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { background: var(--surface); color: var(--fg-2); border: 0; padding: 0.5rem 0.9rem; font: inherit; font-size: 0.9rem; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.seg button:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--human); outline-offset: 2px; }
+input[type="text"] { font: inherit; padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); min-width: 0; }
+.out { font-family: var(--mono); font-size: 0.9rem; background: var(--surface-2); padding: 0.5rem 0.75rem; border-radius: 4px; overflow-x: auto; white-space: nowrap; }
+.flow { width: 100%; height: auto; display: block; margin: 1rem 0; }
+.flow text { font-family: var(--body); font-size: 12px; fill: var(--fg); }
+.flow .small { font-size: 10.5px; fill: var(--fg-2); }
+.flow .mono { font-family: var(--mono); font-size: 10.5px; }
+.flow .box { fill: var(--surface); stroke: var(--line); }
+.flow .human-box { fill: var(--human-bg); stroke: var(--human); }
+.flow .sp-box { fill: var(--sp-bg); stroke: var(--sp); }
+.flow .state-box { fill: var(--state-bg); stroke: var(--state); }
+.flow .arrow { stroke: var(--fg-2); fill: none; stroke-width: 1.4; marker-end: url(#arr); }
+.yaml { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1rem; }
+.yaml pre { margin: 0; }
+.yaml .ln { display: block; padding: 0 0.4rem; margin: 0 -0.4rem; border-radius: 3px; cursor: pointer; }
+.yaml .ln:hover, .yaml .ln.active { background: var(--code-hl); }
+.yaml .explain { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; font-size: 0.92rem; align-self: start; position: sticky; top: 1rem; }
+.yaml .explain p { margin: 0.4rem 0; }
+.incident { display: grid; grid-template-columns: auto 1fr; gap: 0.75rem 1rem; align-items: start; }
+.incident .n { font-family: var(--display); font-size: 1.6rem; color: var(--fg-2); line-height: 1; padding-top: 0.15rem; }
+.incident .err { font-family: var(--mono); font-size: 0.8rem; color: var(--no); overflow-wrap: anywhere; }
+ul.res { padding-left: 1.2rem; }
+ul.res li { margin: 0.35rem 0; }
+ul.res .d { color: var(--fg-2); font-size: 0.85rem; white-space: nowrap; }
+@media (max-width: 700px) { .yaml { grid-template-columns: 1fr; } .yaml .explain { position: static; } }
+@media (prefers-reduced-motion: no-preference) { .ln, .seg button { transition: background 120ms; } }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <div class="eyebrow">Databricks Genie in Production · learning note · 2026-10-03</div>
+  <h1>Who deploys, who runs, who owns</h1>
+  <p class="lede">Identities, two permission systems, environment layouts, and what <code>mode: development</code> and <code>mode: production</code> actually do in a Declarative Automation Bundle. Built from the errors this repo hit on 2026-10-02 and verified against the doc pages listed at the end.</p>
+  <nav class="toc" aria-label="Sections">
+    <a href="#principals">1 Principals and profiles</a>
+    <a href="#two-systems">2 Two permission systems</a>
+    <a href="#simulator">3 Grant simulator</a>
+    <a href="#least">4 Least privilege</a>
+    <a href="#layouts">5 Dev and prod layouts</a>
+    <a href="#modes">6 Deployment modes</a>
+    <a href="#repo">7 This repo, annotated</a>
+    <a href="#incidents">8 The four errors</a>
+    <a href="#resources">Resources</a>
+  </nav>
+</header>
+
+<main>
+
+<!-- ───────────────────────── 1 ───────────────────────── -->
+<section class="wrap" id="principals">
+  <h2>1. Principals and profiles</h2>
+  <p>A <strong>principal</strong> is anything that can hold a permission: a user, a service principal, or a group. Every Databricks action is performed <em>as</em> exactly one principal, and that principal is decided before the first API call by the CLI's authentication resolution. Most of the confusion on 2026-10-02 came from not knowing which principal a command ran as.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Principal</th><th>Identified by</th><th>Authenticates with</th><th>Profile <code>auth_type</code></th><th>Here</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill human">User</span></td><td>email</td><td>browser login, OAuth user-to-machine</td><td><code>databricks-cli</code></td><td>profile <code>genie-prod-me</code>, you@example.com</td></tr>
+      <tr><td><span class="pill sp">Service principal</span></td><td>application ID (a UUID)</td><td>client ID + secret, OAuth machine-to-machine</td><td><code>oauth-m2m</code></td><td>profile <code>genie-prod-sp</code>, <code>47d22b7a-…</code></td></tr>
+      <tr><td>Group</td><td>name</td><td>never directly; it collects the two above</td><td>n/a</td><td>none yet; grant to groups once there are students</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Service principals are addressed by application ID everywhere in configuration: in <code>GRANT … TO `47d22b7a-…`</code>, in a bundle's <code>run_as.service_principal_name</code>, and in <code>grants.principal</code>. The display name you gave it in the admin console is only a label.</p>
+
+  <h3>Profiles are named credential sets</h3>
+  <p>A profile is one section in <code>~/.databrickscfg</code>: a host plus a way to get a token. The CLI picks one by this order, and the first match wins:</p>
+  <ol>
+    <li>Environment variables such as <code>DATABRICKS_HOST</code>, <code>DATABRICKS_CLIENT_ID</code>, <code>DATABRICKS_CLIENT_SECRET</code>, <code>DATABRICKS_TOKEN</code>.</li>
+    <li>The profile named by <code>--profile</code> or <code>DATABRICKS_CONFIG_PROFILE</code>.</li>
+    <li>The <code>[DEFAULT]</code> profile.</li>
+  </ol>
+
+  <div class="panel">
+    <div class="eyebrow">Try it · who am I?</div>
+    <p style="margin-top:0.4rem">Your shell on 2026-10-02 had the service principal's client ID and secret exported. Flip the switches and watch who the CLI becomes.</p>
+    <div class="grid2">
+      <fieldset>
+        <legend>Shell and command</legend>
+        <label class="chk"><input type="checkbox" id="whoEnv" checked> <span><code>DATABRICKS_CLIENT_ID</code> and <code>_SECRET</code> exported in the shell</span></label>
+        <label class="chk"><input type="checkbox" id="whoFlag"> <span><code>--profile genie-prod-me</code> on the command</span></label>
+        <label class="chk"><input type="checkbox" id="whoDefault"> <span><code>[DEFAULT]</code> profile filled in (yours is empty)</span></label>
+      </fieldset>
+      <fieldset>
+        <legend>Result</legend>
+        <p id="whoOut" style="margin:0.3rem 0"></p>
+        <p id="whoWhy" style="margin:0.3rem 0; color: var(--fg-2); font-size: 0.9rem"></p>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="lesson"><p><strong>Lesson from the 403.</strong> A bare <code>bundle deploy</code> ran as the service principal because environment variables outrank everything else. The upload path gave it away: the bundle landed under <code>/Workspace/Users/47d22b7a-…</code>, a folder named by an application ID, not by an email.</p></div>
+</section>
+
+<!-- ───────────────────────── 2 ───────────────────────── -->
+<section class="wrap" id="two-systems">
+  <h2>2. Two permission systems, two YAML keys</h2>
+  <p>Databricks has two unrelated access-control systems and a bundle talks to both. Mixing them up is the single most common source of "but I granted that" confusion.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th></th><th>Workspace access control</th><th>Unity Catalog privileges</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Protects</strong></td><td>workspace objects: jobs, pipelines, apps, notebooks, warehouses, and service principals themselves</td><td>data objects: catalog, schema, table, view, volume, function, model</td></tr>
+      <tr><td><strong>Vocabulary</strong></td><td>levels: <code>CAN_VIEW</code>, <code>CAN_RUN</code>, <code>CAN_MANAGE_RUN</code>, <code>CAN_MANAGE</code>; on a service principal: <code>CAN_USE</code> ("Service Principal User")</td><td>privileges: <code>USE CATALOG</code>, <code>USE SCHEMA</code>, <code>SELECT</code>, <code>MODIFY</code>, <code>CREATE TABLE</code>, <code>CREATE MATERIALIZED VIEW</code>, <code>READ VOLUME</code>, <code>WRITE VOLUME</code>, <code>CREATE SCHEMA</code>, <code>MANAGE</code>, <code>ALL PRIVILEGES</code></td></tr>
+      <tr><td><strong>Set by</strong></td><td>the object's Permissions dialog, the Permissions API</td><td><code>GRANT … ON … TO …</code> in SQL, Catalog Explorer, the Grants API</td></tr>
+      <tr><td><strong>Bundle key</strong></td><td><code>permissions:</code> at top level or per target, applied to every resource the bundle deploys</td><td><code>grants:</code> on a <code>catalogs</code>, <code>schemas</code> or <code>volumes</code> resource. There is no top-level <code>grants</code>.</td></tr>
+      <tr><td><strong>Inherits?</strong></td><td>no, per object (folder ACLs aside)</td><td>yes, downward: a grant on the catalog applies inside every schema, a grant on the schema applies to every table and volume in it</td></tr>
+      <tr><td><strong>Ownership</strong></td><td>creator owns; owner has <code>CAN_MANAGE</code></td><td>creator owns; owner holds every privilege, may grant, may transfer with <code>ALTER … OWNER TO</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The two gateway privileges</h3>
+  <p>Unity Catalog requires a path to the object, not only a privilege on it. To read <code>genie_reference.prod.dim_listing</code> a principal needs <code>USE CATALOG</code> on the catalog, <code>USE SCHEMA</code> on the schema, and <code>SELECT</code> on the table (or inherited from above). Owning the schema does not grant <code>USE CATALOG</code> on its parent, which is exactly why the service principal in this repo gets one catalog-level grant and nothing more there.</p>
+
+  <h3>Ownership rules that bite in bundles</h3>
+  <ul>
+    <li>A <strong>schema resource is always owned by the deploying identity</strong>. <code>run_as</code> is ignored for schemas. So the deployer never needs grants on its own schemas, and the run identity always does.</li>
+    <li>Whoever runs <code>CREATE CATALOG</code> owns the catalog. On 2026-10-02 that was you in the UI, so the service principal had nothing, hence the 403.</li>
+    <li>Only an owner, a <code>MANAGE</code> holder, the parent's owner, or a metastore admin may grant. A bootstrap script that runs as the service principal cannot grant the service principal anything. One that runs as the catalog owner can.</li>
+  </ul>
+</section>
+
+<!-- ───────────────────────── 3 ───────────────────────── -->
+<section class="bench" id="simulator">
+  <div class="wrap">
+    <h2>3. Grant simulator</h2>
+    <p>Pick grants for the <span class="pill sp">pipeline service principal</span> at each level of <code>genie_reference.prod</code> and see which real actions succeed. Inheritance flows downward; ownership of the schema gives everything from the schema down but nothing on the catalog.</p>
+  </div>
+  <div class="panel">
+    <div class="grid2" style="grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));">
+      <fieldset id="gCat">
+        <legend>Catalog <code>genie_reference</code></legend>
+        <label class="chk"><input type="checkbox" data-lvl="cat" value="USE CATALOG"> USE CATALOG</label>
+        <label class="chk"><input type="checkbox" data-lvl="cat" value="CREATE SCHEMA"> CREATE SCHEMA</label>
+        <label class="chk"><input type="checkbox" data-lvl="cat" value="USE SCHEMA"> USE SCHEMA <span class="small" style="color:var(--fg-2)">(inherits)</span></label>
+        <label class="chk"><input type="checkbox" data-lvl="cat" value="SELECT"> SELECT <span style="color:var(--fg-2)">(inherits)</span></label>
+        <label class="chk"><input type="checkbox" data-lvl="cat" value="ALL PRIVILEGES"> ALL PRIVILEGES</label>
+      </fieldset>
+      <fieldset id="gSch">
+        <legend>Schema <code>prod</code></legend>
+        <label class="chk"><input type="checkbox" data-lvl="sch" value="OWNER"> <strong>is owner</strong></label>
+        <label class="chk"><input type="checkbox" data-lvl="sch" value="USE SCHEMA"> USE SCHEMA</label>
+        <label class="chk"><input type="checkbox" data-lvl="sch" value="CREATE TABLE"> CREATE TABLE</label>
+        <label class="chk"><input type="checkbox" data-lvl="sch" value="CREATE MATERIALIZED VIEW"> CREATE MATERIALIZED VIEW</label>
+        <label class="chk"><input type="checkbox" data-lvl="sch" value="SELECT"> SELECT</label>
+        <label class="chk"><input type="checkbox" data-lvl="sch" value="MODIFY"> MODIFY</label>
+        <label class="chk"><input type="checkbox" data-lvl="sch" value="READ VOLUME"> READ VOLUME</label>
+        <label class="chk"><input type="checkbox" data-lvl="sch" value="WRITE VOLUME"> WRITE VOLUME</label>
+      </fieldset>
+      <fieldset>
+        <legend>Presets</legend>
+        <div style="display:flex; flex-wrap:wrap; gap:0.5rem">
+          <button type="button" class="preset" data-preset="none">Nothing</button>
+          <button type="button" class="preset" data-preset="repo">This repo's prod grants</button>
+          <button type="button" class="preset" data-preset="owner">SP deploys prod (owns schema)</button>
+          <button type="button" class="preset" data-preset="all">ALL PRIVILEGES on catalog</button>
+        </div>
+        <p style="font-size:0.85rem; color:var(--fg-2); margin:0.75rem 0 0">"This repo's prod grants" is what <code>databricks.yml</code> plus <code>bootstrap.yml</code> produce for target <code>prod</code>.</p>
+      </fieldset>
+    </div>
+    <h3 style="margin-top:1.5rem">What the service principal can do</h3>
+    <div class="actions" id="actions"></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 4 ───────────────────────── -->
+<section class="wrap" id="least">
+  <h2>4. Least privilege, concretely</h2>
+  <p>Least privilege means every identity holds only the privileges its job needs, at the narrowest object that still works. In this project it splits into three jobs:</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Job</th><th>Identity</th><th>Needs</th><th>Gets it how</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Create the shared catalog</strong></td><td><span class="pill human">you</span></td><td><code>CREATE CATALOG</code> on the metastore</td><td>workspace admin by default; one-time, by hand or by the bootstrap SQL</td></tr>
+      <tr><td><strong>Deploy a target</strong></td><td><span class="pill human">you</span> (or CI)</td><td><code>USE CATALOG</code> + <code>CREATE SCHEMA</code> on the catalog; <code>CAN_USE</code> on the service principal it will name in <code>run_as</code></td><td>catalog owner has them already; CAN_USE is a role you add to yourself on the SP</td></tr>
+      <tr><td><strong>Run prod jobs and the pipeline</strong></td><td><span class="pill sp">service principal</span></td><td><code>USE CATALOG</code> on the catalog; on <code>prod_raw</code>: <code>USE SCHEMA</code>, <code>READ VOLUME</code>, <code>WRITE VOLUME</code>; on <code>prod</code>: <code>USE SCHEMA</code>, <code>CREATE TABLE</code>, <code>CREATE MATERIALIZED VIEW</code>, <code>SELECT</code>, <code>MODIFY</code></td><td>catalog grant from <code>bootstrap.yml</code>; schema grants from the prod target override</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>What the service principal deliberately does <em>not</em> get: <code>CREATE SCHEMA</code> (it never deploys), anything on the <code>dev</code> schemas (it never runs there), <code>ALL PRIVILEGES</code> anywhere, and ownership of anything. If the prod pipeline is compromised or misconfigured, the blast radius is two schemas.</p>
+
+  <div class="note"><p><strong>Why not let the SP own everything?</strong> It works, and setup B in the session did exactly that. The cost is that the SP then needs <code>CREATE SCHEMA</code>, owns prod objects that humans cannot see without further grants, and becomes a single identity that both deploys and runs, which is the thing audit teams ask you to separate.</p></div>
+</section>
+
+<!-- ───────────────────────── 5 ───────────────────────── -->
+<section class="bench" id="layouts">
+  <div class="wrap">
+    <h2>5. Dev and prod in one workspace</h2>
+    <p>Two common layouts. Both isolate dev from prod; they differ in where the boundary sits and in what the bundle may own. Switch between them.</p>
+  </div>
+  <div class="panel">
+    <div class="seg" role="group" aria-label="Layout">
+      <button type="button" data-layout="catalogs" aria-pressed="false">Two catalogs</button>
+      <button type="button" data-layout="schemas" aria-pressed="true">One catalog, two schemas (this repo)</button>
+    </div>
+    <div id="layoutCatalogs" hidden>
+      <svg class="flow" viewBox="0 0 760 230" role="img" aria-label="Two catalogs layout">
+        <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--fg-2)"/></marker></defs>
+        <rect x="10" y="10" width="740" height="210" rx="8" class="box"/>
+        <text x="24" y="32" class="small">Workspace adb-7405615411129521</text>
+        <rect x="40" y="50" width="320" height="150" rx="6" class="human-box"/>
+        <text x="56" y="74">catalog genie_dev</text><text x="56" y="90" class="small">owner: you · created by hand</text>
+        <rect x="56" y="104" width="130" height="36" rx="4" class="human-box"/><text x="66" y="127" class="mono">raw</text>
+        <rect x="200" y="104" width="130" height="36" rx="4" class="human-box"/><text x="210" y="127" class="mono">airbnb</text>
+        <text x="56" y="170" class="small">bundle target dev owns both schemas</text>
+        <text x="56" y="186" class="small">jobs run as: you</text>
+        <rect x="400" y="50" width="320" height="150" rx="6" class="sp-box"/>
+        <text x="416" y="74">catalog genie_prod</text><text x="416" y="90" class="small">owner: you · created by hand</text>
+        <rect x="416" y="104" width="130" height="36" rx="4" class="human-box"/><text x="426" y="127" class="mono">raw</text>
+        <rect x="560" y="104" width="130" height="36" rx="4" class="human-box"/><text x="570" y="127" class="mono">airbnb</text>
+        <text x="416" y="170" class="small">bundle target prod owns both schemas</text>
+        <text x="416" y="186" class="small">jobs run as: service principal (USE CATALOG + schema grants)</text>
+      </svg>
+      <div class="grid2">
+        <div>
+          <h3 style="margin-top:0">How it works</h3>
+          <ul>
+            <li>Isolation boundary is the catalog. Dev and prod cannot see each other without an explicit cross-catalog grant.</li>
+            <li>Same schema names in both; only <code>var.catalog</code> changes per target. Code never mentions the environment.</li>
+            <li>Two catalogs to create by hand on a Default Storage workspace, two <code>USE CATALOG</code> grants, each scoped to its own environment.</li>
+            <li>Catalogs still stay out of the bundle: each is shared by nothing, but the API cannot create them here, and a destroy of a target would otherwise delete a whole catalog.</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin-top:0">Bundle sketch</h3>
+<pre><code>variables:
+  catalog: { default: genie_dev }
+targets:
+  dev:
+    mode: development
+  prod:
+    mode: production
+    variables: { catalog: genie_prod }
+    run_as: { service_principal_name: 47d22b7a-… }</code></pre>
+        </div>
+      </div>
+    </div>
+    <div id="layoutSchemas">
+      <svg class="flow" viewBox="0 0 760 250" role="img" aria-label="One catalog two schemas layout">
+        <rect x="10" y="10" width="740" height="230" rx="8" class="box"/>
+        <text x="24" y="32" class="small">Workspace adb-7405615411129521</text>
+        <rect x="40" y="46" width="680" height="180" rx="6" class="state-box"/>
+        <text x="56" y="70">catalog genie_reference</text>
+        <text x="56" y="86" class="small">owner: you · created once in the UI · not in any target's state · USE CATALOG granted to the SP by bootstrap.yml</text>
+        <rect x="56" y="104" width="300" height="104" rx="6" class="human-box"/>
+        <text x="70" y="126">target dev</text>
+        <rect x="70" y="138" width="120" height="30" rx="4" class="box"/><text x="80" y="158" class="mono">dev_raw</text>
+        <rect x="204" y="138" width="120" height="30" rx="4" class="box"/><text x="214" y="158" class="mono">dev</text>
+        <text x="70" y="192" class="small">owner: you · runs as: you · no grants at all</text>
+        <rect x="404" y="104" width="300" height="104" rx="6" class="sp-box"/>
+        <text x="418" y="126">target prod</text>
+        <rect x="418" y="138" width="120" height="30" rx="4" class="box"/><text x="428" y="158" class="mono">prod_raw</text>
+        <rect x="552" y="138" width="120" height="30" rx="4" class="box"/><text x="562" y="158" class="mono">prod</text>
+        <text x="418" y="192" class="small">owner: you · runs as: SP · grants on both schemas</text>
+      </svg>
+      <div class="grid2">
+        <div>
+          <h3 style="margin-top:0">How it works</h3>
+          <ul>
+            <li>Isolation boundary is the schema. The catalog is shared infrastructure with a lifetime longer than any target.</li>
+            <li>Each target owns only its own schemas, so <code>bundle destroy -t dev</code> removes <code>dev_raw</code> and <code>dev</code> and nothing else.</li>
+            <li>One catalog to create by hand, one <code>USE CATALOG</code> grant. The SP's schema grants are declared in YAML and reach only <code>prod_raw</code> and <code>prod</code>.</li>
+            <li>Price: schema names carry the environment (<code>dev</code>, <code>prod</code>), so <code>var.schema</code> differs per target instead of <code>var.catalog</code>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin-top:0">Why the catalog must not be a shared resource</h3>
+          <p>Each target keeps its own state file listing what it created. If both targets declared <code>resources.catalogs.genie_reference</code>, the second deploy fails with "already exists", and if you got past that, <code>bundle destroy -t dev</code> would delete the catalog together with every prod table in it. A target should own only objects whose lifetime equals the target's.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 6 ───────────────────────── -->
+<section class="bench" id="modes">
+  <div class="wrap">
+    <h2>6. Deployment modes</h2>
+    <p><code>mode</code> is optional. It is a bundle of defaults applied at deploy time, nothing more, and each default can be overridden with <code>presets</code>. The behaviors below are quoted from the deployment-modes page, last updated 2026-09-11.</p>
+  </div>
+  <div class="panel">
+    <div class="tablewrap"><table>
+      <thead><tr><th>At deploy time</th><th><code>mode: development</code></th><th><code>mode: production</code></th></tr></thead>
+      <tbody>
+        <tr><td><strong>Resource names</strong></td><td>prefixed with <code>[dev &lt;short_name&gt;]</code> for resources that are not files or notebooks; jobs and pipelines also get a <code>dev</code> tag. Volumes are explicitly <em>not</em> prefixed. Schemas: not stated on the resources page, verify on first deploy.</td><td>unchanged</td></tr>
+        <tr><td><strong>Pipelines</strong></td><td>forced to <code>development: true</code></td><td>validated to be <code>development: false</code></td></tr>
+        <tr><td><strong>Schedules and triggers</strong></td><td>all paused</td><td>as configured</td></tr>
+        <tr><td><strong>Concurrent job runs</strong></td><td>enabled on every job for fast iteration</td><td>as configured</td></tr>
+        <tr><td><strong>Deployment lock</strong></td><td>disabled</td><td>enabled</td></tr>
+        <tr><td><strong>Cluster override</strong></td><td><code>--cluster-id</code> may replace every cluster definition</td><td>not allowed</td></tr>
+        <tr><td><strong>Git branch</strong></td><td>not checked</td><td>validated against <code>git.branch</code> if set; <code>--force</code> overrides</td></tr>
+        <tr><td><strong>Identity</strong></td><td>whoever deploys; files land in <code>/Users/&lt;you&gt;/.bundle/…</code></td><td>Databricks recommends <code>run_as</code> a service principal. Without one it validates that paths are not user-specific and that <code>run_as</code> and <code>permissions</code> are set.</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="grid2" style="margin-top:1rem">
+      <fieldset>
+        <legend>Try it · development prefix</legend>
+        <p style="margin:0.3rem 0 0.6rem; font-size:0.9rem; color:var(--fg-2)">The prefix is <code>[dev ${workspace.current_user.short_name}]</code>, the part of your email before the @, with dots and such kept.</p>
+        <div style="display:grid; gap:0.5rem">
+          <label style="font-size:0.85rem">Your email <input type="text" id="pfxUser" value="you@example.com" style="width:100%"></label>
+          <label style="font-size:0.85rem">Resource name <input type="text" id="pfxName" value="setup_workspace" style="width:100%"></label>
+          <div class="out" id="pfxOut"></div>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>run_as, precisely</legend>
+        <ul style="margin:0.3rem 0; padding-left:1.1rem; font-size:0.92rem">
+          <li><strong>Deployer</strong> is the identity behind the CLI call. It uploads files, creates jobs, pipelines and schemas, and owns the schemas.</li>
+          <li><strong>Runner</strong> is <code>run_as</code>. Jobs and pipelines execute as it. It must exist, be an application ID, and the deployer needs <code>CAN_USE</code> on it.</li>
+          <li>When deployer and runner differ, only jobs and pipelines are supported under <code>run_as</code>. Model serving endpoints refuse it.</li>
+          <li>Deployment mode never changes <em>who</em> deploys. It changes names, flags and validations.</li>
+        </ul>
+      </fieldset>
+    </div>
+  </div>
+  <div class="wrap">
+    <svg class="flow" viewBox="0 0 760 170" role="img" aria-label="Deploy and run identities">
+      <rect x="20" y="30" width="190" height="110" rx="6" class="human-box"/>
+      <text x="34" y="54">Deployer</text>
+      <text x="34" y="72" class="small">you, via --profile genie-prod-me</text>
+      <text x="34" y="96" class="small">uploads files</text>
+      <text x="34" y="110" class="small">creates jobs, pipeline, schemas</text>
+      <text x="34" y="124" class="small">owns the schemas</text>
+      <path d="M210,85 C250,85 260,85 300,85" class="arrow"/>
+      <text x="222" y="78" class="small">run_as</text>
+      <rect x="300" y="30" width="200" height="110" rx="6" class="sp-box"/>
+      <text x="314" y="54">Runner (prod only)</text>
+      <text x="314" y="72" class="small">service principal 47d22b7a-…</text>
+      <text x="314" y="96" class="small">executes jobs and pipeline</text>
+      <text x="314" y="110" class="small">needs USE CATALOG + schema grants</text>
+      <text x="314" y="124" class="small">owns nothing</text>
+      <path d="M500,85 C540,85 550,85 590,85" class="arrow"/>
+      <text x="512" y="78" class="small">reads / writes</text>
+      <rect x="590" y="30" width="150" height="110" rx="6" class="state-box"/>
+      <text x="604" y="54">Data</text>
+      <text x="604" y="72" class="mono">genie_reference</text>
+      <text x="604" y="90" class="mono">  .prod_raw</text>
+      <text x="604" y="106" class="mono">  .prod</text>
+      <text x="604" y="128" class="small">catalog owner: you</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ───────────────────────── 7 ───────────────────────── -->
+<section class="bench" id="repo">
+  <div class="wrap">
+    <h2>7. This repo, annotated</h2>
+    <p>Hover or tap a line of the prod target in <code>bundle/databricks.yml</code> to see why it is there. Lines with no note are plumbing.</p>
+  </div>
+  <div class="panel yaml">
+    <pre><code id="yamlCode"></code></pre>
+    <div class="explain" id="yamlExplain"><p class="eyebrow">Explanation</p><p id="yamlText">Pick a line.</p></div>
+  </div>
+  <div class="wrap">
+    <h3>The bootstrap, step by step, with the identity each step runs as</h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Step</th><th>Runs as</th><th>Needs</th><th>Produces</th></tr></thead>
+      <tbody>
+        <tr><td><code>CREATE CATALOG IF NOT EXISTS</code></td><td><span class="pill human">deployer</span></td><td>CREATE CATALOG, or the catalog already exists</td><td>catalog owned by the deployer, or a no-op</td></tr>
+        <tr><td><code>GRANT USE CATALOG … TO SP</code> (prod only)</td><td><span class="pill human">deployer</span></td><td>be the catalog owner or hold MANAGE</td><td>the one catalog-level privilege the SP has</td></tr>
+        <tr><td><code>bundle deploy -t prod</code></td><td><span class="pill human">deployer</span></td><td>USE CATALOG + CREATE SCHEMA; CAN_USE on the SP</td><td>schemas owned by deployer, with grants to the SP; job and pipeline with <code>run_as</code> SP</td></tr>
+        <tr><td><code>bundle run setup_workspace -t prod</code></td><td><span class="pill sp">runner</span></td><td>USE CATALOG, USE SCHEMA, WRITE VOLUME on <code>prod_raw</code></td><td>CSV files in the raw volume</td></tr>
+      </tbody>
+    </table></div>
+    <p>In <code>dev</code> the second step is skipped because <code>var.service_principal</code> is empty, and the last two steps run as you. Same script, two identity models, selected by one variable.</p>
+  </div>
+</section>
+
+<!-- ───────────────────────── 8 ───────────────────────── -->
+<section class="wrap" id="incidents">
+  <h2>8. The four errors of 2026-10-02</h2>
+  <p>Each one is a lesson about a different layer. Read them as a checklist for the next workspace.</p>
+  <div class="incident">
+    <div class="n">1</div>
+    <div>
+      <div class="err">cannot create resources.catalogs.genie_reference: Metastore storage root URL does not exist. Default Storage is enabled in your account.</div>
+      <p><strong>Layer: storage.</strong> The metastore has no storage root, and only serverless workspaces may create catalogs on Default Storage from SQL or the API. A classic workspace must use the Catalog Explorer dialog. Consequence for the design: the catalog is created by hand and is not a bundle resource.</p>
+    </div>
+    <div class="n">2</div>
+    <div>
+      <div class="err">bootstrap printed "state": "FAILED" and then kept going into bundle deploy</div>
+      <p><strong>Layer: shell.</strong> The statement execution API returns HTTP 200 for a failed statement, so <code>set -e</code> saw success. The script now reads the body and stops with a message pointing at the manual step.</p>
+    </div>
+    <div class="n">3</div>
+    <div>
+      <div class="err">User does not have CREATE SCHEMA and USE CATALOG on Catalog 'genie_reference'. (403 PERMISSION_DENIED)</div>
+      <p><strong>Layer: identity.</strong> "User" was the service principal, because exported environment variables outrank the profile file. You owned the catalog from step 1, it had nothing. The fix was not a grant but choosing who deploys: pass <code>--profile genie-prod-me</code>, so the catalog owner deploys and the SP only runs.</p>
+    </div>
+    <div class="n">4</div>
+    <div>
+      <div class="err">missing property: name (editor, twice)</div>
+      <p><strong>Layer: tooling.</strong> The editor validates a target override block against the full resource schema, where <code>name</code> is required. The CLI merges overrides onto the base first and is happy. Repeating <code>name</code> and <code>catalog_name</code> in the override satisfies both.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── resources ───────────────────────── -->
+<section class="wrap" id="resources">
+  <h2>Resources</h2>
+  <p>Every page below was read for this note; the date is the page's own "Last updated". Re-check anything older than the thing you are building on.</p>
+  <h3>Bundles</h3>
+  <ul class="res">
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/bundles/deployment-modes">Deployment modes</a> <span class="d">· 2026-09-11 · the source of section 6</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/bundles/run-as">Specify a run identity (run_as)</a> <span class="d">· 2026-09-11 · application ID, CAN_USE, jobs and pipelines only</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/bundles/resources">Bundle resources</a> <span class="d">· 2026-10-01 · catalogs, schemas, volumes, grants, lifecycle.prevent_destroy; schema owner is always the deployer</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/bundles/settings">Bundle configuration (databricks.yml)</a> <span class="d">· 2026-09-11 · top-level scripts, permissions, include</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/bundles/variables">Substitutions and variables</a> <span class="d">· lookup types; no lookup for catalogs or schemas</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/cli/bundle-commands">bundle command group</a> <span class="d">· bundle run for scripts (auth passed via environment), bundle deployment bind</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/bundles/permissions">Bundle permissions</a> <span class="d">· the permissions key and its levels</span></li>
+    <li><a href="https://github.com/databricks/cli/issues/4513">databricks/cli#4513</a> <span class="d">· catalog creation fails without a metastore storage root; closed not-planned 2026-05-20</span></li>
+    <li><a href="https://github.com/databricks/bundle-examples">databricks/bundle-examples</a> <span class="d">· official end-to-end bundles</span></li>
+  </ul>
+  <h3>Identity and authentication</h3>
+  <ul class="res">
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/auth/unified-auth">Unified authentication</a> <span class="d">· 2026-09-11 · evaluation order: fields, environment variables, profile</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/auth/oauth-m2m">OAuth machine-to-machine</a> <span class="d">· service principal client ID and secret</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/admin/users-groups/service-principals">Service principals</a> <span class="d">· roles on a service principal: Service Principal User (CAN_USE), Manager</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/dev-tools/cli/profiles">CLI configuration profiles</a> <span class="d">· the .databrickscfg format</span></li>
+  </ul>
+  <h3>Unity Catalog privileges</h3>
+  <ul class="res">
+    <li><a href="https://docs.databricks.com/aws/en/data-governance/unity-catalog/manage-privileges/">Manage privileges</a> <span class="d">· 2026-09-11 · who may grant, owners hold all privileges, service principals by applicationId</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/data-governance/unity-catalog/manage-privileges/privileges">Privilege types</a> <span class="d">· the full verb list, inheritance table</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/data-governance/unity-catalog/manage-privileges/ownership">Ownership</a> <span class="d">· transfer with ALTER … OWNER TO</span></li>
+    <li><a href="https://docs.databricks.com/aws/en/security/auth/access-control/">Workspace access control lists</a> <span class="d">· CAN_VIEW, CAN_RUN, CAN_MANAGE and friends</span></li>
+    <li><a href="https://learn.microsoft.com/en-us/azure/databricks/storage/default-storage">Default storage (Azure)</a> <span class="d">· 2026-09-23 · catalogs on Default Storage only from serverless workspaces</span></li>
+  </ul>
+  <h3>In this repo</h3>
+  <ul class="res">
+    <li><code>bundle/databricks.yml</code> · <code>bundle/bootstrap.yml</code> · <code>bundle/resources/schemas.yml</code> · README section "Deploying the bundle" · <code>.dev/plan.md</code> entry dated 2026-10-02</li>
+  </ul>
+</section>
+
+</main>
+
+<script>
+(function () {
+  // ── 1. Who am I ─────────────────────────────────────────────
+  const whoEnv = document.getElementById('whoEnv');
+  const whoFlag = document.getElementById('whoFlag');
+  const whoDefault = document.getElementById('whoDefault');
+  const whoOut = document.getElementById('whoOut');
+  const whoWhy = document.getElementById('whoWhy');
+  function who() {
+    if (whoEnv.checked) {
+      whoOut.innerHTML = 'Runs as <span class="pill sp">service principal 47d22b7a-…</span>';
+      whoWhy.textContent = whoFlag.checked
+        ? 'Environment variables are evaluated before the profile named by --profile, so the flag loses. Unset them first.'
+        : 'Environment variables are the first thing the CLI checks. Nothing else is consulted.';
+    } else if (whoFlag.checked) {
+      whoOut.innerHTML = 'Runs as <span class="pill human">you@example.com</span>';
+      whoWhy.textContent = 'No environment variables, so the named profile wins. This is the intended setup for every deploy.';
+    } else if (whoDefault.checked) {
+      whoOut.innerHTML = 'Runs as whatever <code>[DEFAULT]</code> says';
+      whoWhy.textContent = 'Fallback of last resort. Keeping DEFAULT empty, as it is now, is a feature: an unqualified command fails loudly instead of acting as the wrong identity.';
+    } else {
+      whoOut.innerHTML = '<span class="pill no">Error: cannot configure default credentials</span>';
+      whoWhy.textContent = 'Nothing to authenticate with. This is the safe failure.';
+    }
+  }
+  [whoEnv, whoFlag, whoDefault].forEach(el => el.addEventListener('change', who));
+  who();
+
+  // ── 3. Grant simulator ──────────────────────────────────────
+  const boxes = Array.from(document.querySelectorAll('#gCat input, #gSch input'));
+  const actionsEl = document.getElementById('actions');
+  const ACTIONS = [
+    { name: 'Deploy the bundle (create schema prod)', needs: ['cat:USE CATALOG', 'cat:CREATE SCHEMA'], note: 'Deployer job. The SP never needs this in setup A.' },
+    { name: 'Read a table: SELECT * FROM genie_reference.prod.dim_listing', needs: ['cat:USE CATALOG', 'sch:USE SCHEMA', 'sch:SELECT'] },
+    { name: 'Pipeline creates streaming tables and materialized views in prod', needs: ['cat:USE CATALOG', 'sch:USE SCHEMA', 'sch:CREATE TABLE', 'sch:CREATE MATERIALIZED VIEW'] },
+    { name: 'Pipeline refreshes tables it created earlier', needs: ['cat:USE CATALOG', 'sch:USE SCHEMA', 'sch:SELECT', 'sch:MODIFY'], note: 'As the creator the SP owns those tables, so in practice SELECT and MODIFY are covered by ownership; the grants make a re-created table survive an ownership change.' },
+    { name: 'Setup job copies CSV files into a volume in this schema', needs: ['cat:USE CATALOG', 'sch:USE SCHEMA', 'sch:WRITE VOLUME'] },
+    { name: 'Auto Loader lists and reads files from the volume', needs: ['cat:USE CATALOG', 'sch:USE SCHEMA', 'sch:READ VOLUME'] },
+    { name: 'Grant another principal SELECT on the schema', needs: ['cat:USE CATALOG', 'sch:OWNER'], note: 'Only an owner or MANAGE holder may grant. Inherited privileges do not include the right to grant.' },
+    { name: 'Read a table in schema dev (the other target)', needs: ['cat:USE CATALOG', 'cat:USE SCHEMA', 'cat:SELECT'], note: 'Only catalog-level grants reach the other schema. Schema-level grants on prod say nothing about dev.' },
+  ];
+  const LABEL = { 'cat:USE CATALOG': 'USE CATALOG on catalog', 'cat:CREATE SCHEMA': 'CREATE SCHEMA on catalog', 'cat:USE SCHEMA': 'USE SCHEMA (catalog level, inherited)', 'cat:SELECT': 'SELECT (catalog level, inherited)',
+    'sch:USE SCHEMA': 'USE SCHEMA', 'sch:SELECT': 'SELECT', 'sch:MODIFY': 'MODIFY', 'sch:CREATE TABLE': 'CREATE TABLE', 'sch:CREATE MATERIALIZED VIEW': 'CREATE MATERIALIZED VIEW', 'sch:READ VOLUME': 'READ VOLUME', 'sch:WRITE VOLUME': 'WRITE VOLUME', 'sch:OWNER': 'ownership (or MANAGE) of the schema' };
+  function granted() {
+    const cat = new Set(), sch = new Set();
+    boxes.forEach(b => { if (b.checked) (b.dataset.lvl === 'cat' ? cat : sch).add(b.value); });
+    const all = cat.has('ALL PRIVILEGES');
+    const owner = sch.has('OWNER');
+    function has(key) {
+      const [lvl, priv] = key.split(':');
+      if (lvl === 'cat') return all || cat.has(priv);
+      if (priv === 'OWNER') return owner || all;
+      // schema level: direct grant, ownership, catalog-level inheritance, or ALL on catalog
+      return owner || all || sch.has(priv) || cat.has(priv);
+    }
+    return has;
+  }
+  function renderActions() {
+    const has = granted();
+    actionsEl.innerHTML = ACTIONS.map(a => {
+      const missing = a.needs.filter(n => !has(n));
+      const ok = missing.length === 0;
+      const why = ok ? 'All required privileges present.' : 'Missing: ' + missing.map(m => LABEL[m]).join(', ') + '.';
+      return `<div class="action"><span class="pill ${ok ? 'ok' : 'no'}">${ok ? 'allowed' : 'denied'}</span><div>${a.name}<div class="why">${why}${a.note ? ' ' + a.note : ''}</div></div></div>`;
+    }).join('');
+  }
+  boxes.forEach(b => b.addEventListener('change', renderActions));
+  const PRESETS = {
+    none: [],
+    repo: ['cat:USE CATALOG', 'sch:USE SCHEMA', 'sch:CREATE TABLE', 'sch:CREATE MATERIALIZED VIEW', 'sch:SELECT', 'sch:MODIFY', 'sch:READ VOLUME', 'sch:WRITE VOLUME'],
+    owner: ['cat:USE CATALOG', 'cat:CREATE SCHEMA', 'sch:OWNER'],
+    all: ['cat:ALL PRIVILEGES'],
+  };
+  document.querySelectorAll('.preset').forEach(btn => btn.addEventListener('click', () => {
+    const set = new Set(PRESETS[btn.dataset.preset]);
+    boxes.forEach(b => { b.checked = set.has(b.dataset.lvl + ':' + b.value); });
+    renderActions();
+  }));
+  document.querySelector('.preset[data-preset="repo"]').click();
+
+  // ── 5. Layout toggle ────────────────────────────────────────
+  const layoutBtns = document.querySelectorAll('[data-layout]');
+  layoutBtns.forEach(btn => btn.addEventListener('click', () => {
+    layoutBtns.forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    document.getElementById('layoutCatalogs').hidden = btn.dataset.layout !== 'catalogs';
+    document.getElementById('layoutSchemas').hidden = btn.dataset.layout !== 'schemas';
+  }));
+
+  // ── 6. Prefix demo ──────────────────────────────────────────
+  const pfxUser = document.getElementById('pfxUser'), pfxName = document.getElementById('pfxName'), pfxOut = document.getElementById('pfxOut');
+  function pfx() {
+    const short = (pfxUser.value.split('@')[0] || 'user').trim();
+    const name = pfxName.value.trim() || 'resource';
+    pfxOut.textContent = `dev:  [dev ${short}] ${name}\nprod: ${name}`;
+    pfxOut.style.whiteSpace = 'pre';
+  }
+  [pfxUser, pfxName].forEach(el => el.addEventListener('input', pfx));
+  pfx();
+
+  // ── 7. Annotated YAML ───────────────────────────────────────
+  const LINES = [
+    ['variables:', null],
+    ['  service_principal:', 'One variable feeds run_as, both grant blocks and the bootstrap script. Change the SP in one place.'],
+    ['    description: Application ID of the service principal that runs jobs and pipelines.', null],
+    ['    default: ""', 'Empty by default. In dev that means: run as the deployer, grant nothing, skip the catalog GRANT in the script.'],
+    ['', null],
+    ['targets:', null],
+    ['  dev:', null],
+    ['    mode: development', 'Names get "[dev tothz]", pipelines become development: true, schedules pause, concurrent runs on, lock off. Nothing about identity.'],
+    ['    default: true', null],
+    ['    variables:', null],
+    ['      source_schema: dev_raw', 'Isolation by schema name. The catalog is the same in every target.'],
+    ['      schema: dev', null],
+    ['', null],
+    ['  prod:', null],
+    ['    mode: production', 'Validates pipelines are development: false and that the git branch matches if set. Recommends, and here we use, run_as a service principal.'],
+    ['    workspace:', null],
+    ['      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}', 'Prod files live under /Shared, not under a person. Production mode would complain about a user path when no run_as SP is set.'],
+    ['    variables:', null],
+    ['      source_schema: prod_raw', null],
+    ['      schema: prod', null],
+    ['      service_principal: 47d22b7a-8f16-43cb-93c5-590e5d89e8b9', 'The application ID, never the display name. Same value is used for GRANT, run_as and grants.principal.'],
+    ['    run_as:', null],
+    ['      service_principal_name: ${var.service_principal}', 'Jobs and the pipeline execute as the SP. The deployer still owns the schemas. The deployer needs CAN_USE on this SP or the deploy is refused.'],
+    ['    permissions:', null],
+    ['      - user_name: you@example.com', 'Workspace ACL, not Unity Catalog: CAN_MANAGE on every deployed job and pipeline so a human can still see, edit and stop them.'],
+    ['        level: CAN_MANAGE', null],
+    ['    resources:', 'A target override. The CLI merges these blocks onto resources/schemas.yml; the editor linter does not know that, hence the repeated name and catalog_name.'],
+    ['      schemas:', null],
+    ['        source_schema:', null],
+    ['          name: ${var.source_schema}', 'Repeated only to satisfy editor schema validation.'],
+    ['          catalog_name: ${var.catalog}', null],
+    ['          grants:', 'Unity Catalog privileges, declared in the bundle. Only in prod, only on this schema.'],
+    ['            - principal: ${var.service_principal}', null],
+    ['              privileges: [USE_SCHEMA, READ_VOLUME, WRITE_VOLUME]', 'What the setup job and Auto Loader need on the raw volume. Schema-level volume privileges inherit to every volume in the schema.'],
+    ['        schema:', null],
+    ['          name: ${var.schema}', null],
+    ['          catalog_name: ${var.catalog}', null],
+    ['          grants:', null],
+    ['            - principal: ${var.service_principal}', null],
+    ['              privileges: [USE_SCHEMA, CREATE_TABLE, CREATE_MATERIALIZED_VIEW, MODIFY, SELECT]', 'What a Lakeflow pipeline needs to create streaming tables and materialized views and refresh them. No CREATE SCHEMA, no ALL PRIVILEGES.'],
+  ];
+  const codeEl = document.getElementById('yamlCode'), textEl = document.getElementById('yamlText');
+  codeEl.innerHTML = LINES.map((l, i) => `<span class="ln" data-i="${i}" ${l[1] ? 'tabindex="0"' : ''}>${l[0].replace(/&/g, '&amp;').replace(/</g, '&lt;') || ' '}</span>`).join('\n');
+  let active = null;
+  function show(i) {
+    const l = LINES[i]; if (!l || !l[1]) return;
+    if (active) active.classList.remove('active');
+    active = codeEl.querySelector(`[data-i="${i}"]`); active.classList.add('active');
+    textEl.textContent = l[1];
+  }
+  codeEl.addEventListener('mouseover', e => { const t = e.target.closest('.ln'); if (t) show(+t.dataset.i); });
+  codeEl.addEventListener('click', e => { const t = e.target.closest('.ln'); if (t) show(+t.dataset.i); });
+  codeEl.addEventListener('focusin', e => { const t = e.target.closest('.ln'); if (t) show(+t.dataset.i); });
+  show(22);
+})();
+</script>
+</body>
+</html>

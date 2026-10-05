@@ -1,0 +1,17 @@
+# Per-target Unity Catalog schemas. Each target owns its own schemas, so
+# `bundle destroy -t dev` can never touch prod data.
+#
+# The catalog is deliberately not a resource here: it is shared by every target,
+# and a classic workspace with Default Storage cannot create one through the API.
+# bootstrap.yml creates it (or verifies it exists) before deploying.
+
+resources:
+  schemas:
+    source_schema:
+      name: ${var.source_schema}
+      catalog_name: ${var.catalog}
+      comment: Raw Inside Airbnb CSV and PDF source files
+    schema:
+      name: ${var.schema}
+      catalog_name: ${var.catalog}
+      comment: Bronze, silver and gold tables and metric views

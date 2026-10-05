@@ -1,0 +1,13 @@
+resources:
+  pipelines:
+    airbnb_pipeline:
+      name: airbnb_pipeline
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      serverless: true
+      continuous: false
+      configuration:
+        source_path: ${var.source_path}
+      libraries:
+        - glob:
+            include: ../src/pipeline/**

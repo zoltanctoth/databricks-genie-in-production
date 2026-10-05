@@ -1,8 +1,10 @@
 > Research appendix. Compiled 2026-10-01 from the official Databricks docs and cited sources by a research agent; every fact carries its source URL and the page "Last updated" date. Re-verify anything dated before you build on it.
+>
+> Platform note (2026-10-02): the build moved from Databricks Free Edition to a standard workspace (decision D1 in `docs/01-requirements-and-risks.md`). Free Edition limits quoted below are kept as research and no longer constrain the design.
 
 # Declarative Automation Bundles (ex-DABs) — research notes, 2026-10-01
 
-Scope: one Free Edition workspace, `dev` + `prod` targets, deploying: SDP medallion pipeline, Lakeflow job, UC metric views, 2 Genie Agents, 1 Databricks App, 1 custom-agent serving endpoint.
+Scope: one workspace, `dev` + `prod` targets, deploying: SDP medallion pipeline, Lakeflow job, UC metric views, 2 Genie Agents, 1 Databricks App, 1 custom-agent serving endpoint.
 
 ## 1. Bundles today
 
