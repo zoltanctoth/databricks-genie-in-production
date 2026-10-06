@@ -1,11 +1,11 @@
--- Bronze: raw Inside Airbnb summary reviews, one row per review (438 K rows).
+-- Bronze: raw Inside Airbnb summary reviews.csv, one row per review (438,299 rows).
 -- Only two columns (listing_id, date); review text is not in the summary file.
--- Error-handling options are explained in bronze_listings.sql.
+-- Two rows with the same listing and date are two guests, not a duplicate.
 CREATE OR REFRESH STREAMING TABLE bronze_reviews (
   CONSTRAINT listing_id_present EXPECT (listing_id IS NOT NULL),
   CONSTRAINT no_rescued_data    EXPECT (_rescued_data IS NULL)
 )
-COMMENT 'Raw Inside Airbnb summary reviews.csv (San Francisco): listing_id, date. All columns as strings plus ingestion metadata. Not a Genie source; feeds fact_review.'
+COMMENT 'Raw Inside Airbnb summary reviews.csv (San Francisco): listing_id, date. All columns as strings plus ingestion metadata. Not a Genie source; feeds silver_reviews.'
 TBLPROPERTIES ('quality' = 'bronze')
 AS SELECT
   *,

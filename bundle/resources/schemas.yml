@@ -1,4 +1,6 @@
-# Per-target Unity Catalog schemas. Each target owns its own schemas, so
+# Per-target Unity Catalog schemas and volumes. In the dev target the CLI
+# prefixes schema names with dev_<user>_ (volumes are not prefixed, but they
+# live inside the prefixed schema), so each target owns its own objects and
 # `bundle destroy -t dev` can never touch prod data.
 #
 # The catalog is deliberately not a resource here: it is shared by every target,
@@ -15,3 +17,17 @@ resources:
       name: ${var.schema}
       catalog_name: ${var.catalog}
       comment: Bronze, silver and gold tables and metric views
+
+  volumes:
+    files:
+      name: files
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.source_schema.name}
+      volume_type: MANAGED
+      comment: Inside Airbnb source files. The three San Francisco CSVs live under airbnb-sf/ and are read by the bronze pipeline tables.
+    documents:
+      name: documents
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.source_schema.name}
+      volume_type: MANAGED
+      comment: The 32 PDFs that Genie Agent B reads alongside the tables. Ten neighbourhood market reports, twenty host house-rules sheets, one San Francisco short-term rental regulation summary and one data dictionary, flat in the volume root.

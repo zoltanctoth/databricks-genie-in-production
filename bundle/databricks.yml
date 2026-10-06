@@ -10,6 +10,8 @@ include:
   - scripts.yml
 
 # These scripts are to be run locally; keep them out of the workspace folder.
+# data/** guards against someone dropping the local CSV copy under bundle/ (the
+# repo-level data/ folder is outside the bundle root and never syncs anyway).
 sync:
   exclude:
     - scripts/**
@@ -27,9 +29,6 @@ variables:
   schema:
     description: Schema the pipeline publishes bronze, silver and gold tables to
     default: airbnb
-  source_path:
-    description: Volume folder holding the three Inside Airbnb CSV files
-    default: /Volumes/${var.catalog}/${var.source_schema}/files/airbnb-sf
 
 targets:
   dev:
@@ -37,6 +36,11 @@ targets:
     default: true
     workspace:
       host: adb-7405615411129521.1.azuredatabricks.net
+    # Development mode prefixes job and pipeline names with [dev <user>] and
+    # schema names with dev_<user>_, so dev publishes to
+    # genie_reference.dev_<user>_airbnb while prod publishes to genie_reference.airbnb.
+    # Resources must therefore refer to schemas through
+    # ${resources.schemas.<key>.name}, never through the bare variable.
 
   prod:
     mode: production

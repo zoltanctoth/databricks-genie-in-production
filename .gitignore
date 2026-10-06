@@ -21,3 +21,6 @@ __pycache__/
 
 # Generated PDF documents (regenerate with tools/generate_documents.py)
 build/
+
+# Local copy of the Inside Airbnb CSVs (download from s3://dbx-data-public/airbnb-sf/ or Inside Airbnb); never committed or synced
+data/
