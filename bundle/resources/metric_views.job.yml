@@ -1,0 +1,18 @@
+resources:
+  jobs:
+    deploy_metric_views:
+      name: deploy_metric_views
+      description: Creates or replaces the Unity Catalog metric views over the gold tables.
+      # Read by the SQL files as {{catalog}} and {{schema}}. The schema name comes from
+      # the resource, so it carries the dev_<user>_ prefix in dev.
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${resources.schemas.schema.name}
+      tasks:
+        - task_key: booking_reference
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/metric_views/booking_reference.sql

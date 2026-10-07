@@ -29,6 +29,10 @@ variables:
   schema:
     description: Schema the pipeline publishes bronze, silver and gold tables to
     default: airbnb
+  warehouse_id:
+    description: SQL warehouse shared by both targets (metric view job, Genie Agents, apps)
+    lookup:
+      warehouse: Serverless Starter Warehouse
 
 targets:
   dev:
