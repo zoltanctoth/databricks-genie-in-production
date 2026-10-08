@@ -1,5 +1,8 @@
 # Databricks Genie in Production
 
+[![Dev tests](https://github.com/zoltanctoth/databricks-genie-in-production/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/zoltanctoth/databricks-genie-in-production/actions/workflows/main.yml)
+[![Prod smoke tests](https://github.com/zoltanctoth/databricks-genie-in-production/actions/workflows/release.yml/badge.svg?branch=release)](https://github.com/zoltanctoth/databricks-genie-in-production/actions/workflows/release.yml)
+
 A production reference architecture and hands-on tutorial for Databricks AI/BI Genie. You build a complete, deployable Genie stack on a standard Databricks workspace: a semantic layer with Unity Catalog metric views, two curated Genie Agents with benchmarks, a Databricks App on the Genie API, a custom orchestrator agent over MCP, and dev/prod deployment with Declarative Automation Bundles.
 
 Written for Databricks practitioners who know SQL, Python and Unity Catalog but are new to Genie. Every step is reproducible on any Databricks workspace with Unity Catalog and serverless compute, on any cloud.
