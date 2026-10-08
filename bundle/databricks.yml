@@ -59,6 +59,8 @@ targets:
       # Production Managers group should have full control over the prod resources
       - group_name: ${var.prod_managers_group_name}
         level: CAN_MANAGE
+    run_as:
+      service_principal_name: ${var.service_principal}
     resources:
       schemas:
         source_schema:
