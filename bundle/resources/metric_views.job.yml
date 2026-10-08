@@ -11,8 +11,8 @@ resources:
         - name: schema
           default: ${resources.schemas.schema.name}
       tasks:
-        - task_key: booking_reference
+        - task_key: availability_metrics
           sql_task:
             warehouse_id: ${var.warehouse_id}
             file:
-              path: ../src/metric_views/booking_reference.sql
+              path: ../src/metric_views/availability_metrics.sql

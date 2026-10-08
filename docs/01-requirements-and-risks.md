@@ -4,11 +4,11 @@
 
 | | |
 |---|---|
-| **Status** | Draft v0.3 (v0.1 2026-10-01; v0.2 simplified data model, San Francisco; v0.3 2026-10-02 platform changed from Free Edition to a standard workspace) |
-| **Date** | 2026-10-02 |
+| **Status** | Draft v0.4 (v0.1 2026-10-01; v0.2 simplified data model, San Francisco; v0.3 2026-10-02 platform changed from Free Edition to a standard workspace; v0.4 2026-10-08 agent sources split by type (D14), CI/CD in core, no fixed dates (D15)) |
+| **Date** | 2026-10-08 |
 | **Author** | Zoltan Toth (with Claude as research and drafting assistant) |
 
-Everything factual in this document was checked against the Databricks documentation on 2026-10-01. Page dates are given where they matter. The five appendices in `docs/research/` hold the detailed findings with source URLs. Items marked **[verify]** could not be confirmed from documentation and are scheduled for the Day 1 feasibility spike.
+Everything factual in this document was checked against the Databricks documentation on 2026-10-01. Page dates are given where they matter. The five appendices in `docs/research/` hold the detailed findings with source URLs. Items marked **[verify]** could not be confirmed from documentation and are checked in the workspace when the phase that needs them starts.
 
 ---
 
@@ -16,7 +16,7 @@ Everything factual in this document was checked against the Databricks documenta
 
 Most Genie material online stops at "create a space, ask a question". This project covers the three areas that decide whether Genie works in production: Genie Agents (curation, quality, operation), the Databricks semantic layer (Unity Catalog metric views), and productionizing Genie with Declarative Automation Bundles. It does so by building a complete, runnable reference architecture on a standard Databricks workspace (Unity Catalog, serverless compute, any cloud), and then turning that build into a Udemy or YouTube course for Databricks practitioners who are new to Genie.
 
-The two-week build optimizes for a working, end-to-end stack with deep coverage of Genie curation and metric views. Course polish (recordings, every click shown) is a later pass. Students need a reproducible capstone on a workspace they already have access to.
+The build optimizes for a working, end-to-end stack with deep coverage of Genie curation and metric views. Course polish (recordings, every click shown) is a later pass. Students need a reproducible capstone on a workspace they already have access to.
 
 ## 2. What changed since 2022 (orientation)
 
@@ -46,35 +46,36 @@ Many practitioners last worked hands-on with Databricks before the 2024 to 2026 
 4. **G4. Serving.** At least one application outside the Genie UI consumes the agents: a Databricks App using the Genie API, and a custom orchestrator agent that routes between the two Genie Agents.
 5. **G5. Course-ready artifact.** The repository, data loading steps, and notebooks are reproducible by a student in any Databricks workspace with Unity Catalog and serverless compute.
 
-### 3.2 Success criteria for the two-week version (due 2026-10-15)
+### 3.2 Success criteria for the core build
 
 - A fresh workspace can go from zero to both Genie Agents answering benchmark questions by following the README.
 - Each Genie Agent has at least 20 benchmark questions and scores above an agreed threshold (proposed: 80 percent "Good" in Chat mode).
-- At least two metric views exist in the gold schema and both agents use them.
+- Agent A answers availability questions only through a metric view, and no fact reaches an agent through two paths (D14).
 - `databricks bundle deploy -t dev` and `-t prod` both succeed from a clean clone; prod has no user-specific paths.
+- CI deploys every component: a merge to `main` deploys dev and passes the tests job, a merge to `release` deploys prod.
 - A Databricks App answers questions through the Genie API using the end user's identity.
 - A custom agent on Databricks Apps routes a mixed question to the right Genie Agent, with MLflow traces visible.
 
 ## 4. Scope
 
-### 4.1 In scope (core, must ship in two weeks)
+### 4.1 In scope (core)
 
 | ID | Component | Description |
 |---|---|---|
 | C1 | Dataset | Inside Airbnb, San Francisco, one snapshot (2026-06-14), three files: detailed `listings.csv.gz`, `calendar.csv.gz`, summary `reviews.csv`. Loaded into a UC volume by the student. |
 | C2 | Data engineering | One serverless Lakeflow Spark Declarative Pipeline: bronze (three raw files), silver (typed, cleansed), gold (four-table star schema with UC comments and informational PK/FK constraints). |
-| C3 | Semantic layer | Metric views in gold with agent metadata (synonyms, display names, formats), deployed by a job SQL task because bundles have no metric view resource. Reduced on 2026-10-08 (D14): `booking_reference` (calendar availability with a snowflake join to listing and host) exists; further views are added only when Agent A curation shows a need. |
+| C3 | Semantic layer | Metric views in gold with agent metadata (synonyms, display names, formats), deployed by a job SQL task because bundles have no metric view resource. Reduced on 2026-10-08 (D14): `availability_metrics` (calendar availability with a snowflake join to listing and host) exists; further views are added only when Agent A curation shows a need. |
 | C4 | Genie Agent A: "San Francisco Market Analyst" | Chat mode. Sources: the metric views plus gold tables (D14). Full curation: joins, SQL expressions (measures, filters, fields), example SQL, entity matching, instructions, 20+ benchmarks. |
 | C5 | Genie Agent B: "Host Operations and Compliance" | Agent mode. Sources: the UC volume of 32 PDFs (ten neighbourhood market reports, twenty host house-rules sheets with synthetic rules, one short-term rental regulation summary, one data dictionary), D14. The PDFs are generated locally by `tools/generate_documents.py` and mirrored next to the CSVs, so the student copies them into a volume like the data. Demonstrates document answers next to Agent A's structured answers. |
 | C6 | Serving 1: Genie chat app | Databricks App calling the Genie Conversation API with user authorization (on-behalf-of), so row filters and the per-user free allowance apply. |
 | C7 | Serving 2: custom orchestrator agent | Custom agent on Databricks Apps (MLflow AgentServer, ResponsesAgent schema) consuming both Genie Agents through the managed Genie MCP servers. This is the hand-built replacement for the Supervisor Agent pattern. |
 | C8 | Evaluation | Genie benchmarks for each agent (SQL correctness at the Genie layer). MLflow 3 `mlflow.genai.evaluate` with ToolCallCorrectness and Correctness scorers for the orchestrator (routing correctness). |
-| C9 | Bundles | One bundle, direct engine, targets `dev` and `prod` in one workspace. Resources: schema, volumes, pipeline, job (pipeline task, metric view DDL task), two `genie_spaces`, two apps. Promotion workflow for Genie JSON via `bundle generate genie-space`. |
+| C9 | Bundles and CI/CD | One bundle, direct engine, targets `dev` and `prod` in one workspace. Resources: schemas, volumes, pipeline, jobs (`setup_workspace`, `deploy_metric_views`, `tests`), two `genie_spaces`, two apps, each added as it is built (D15). GitHub Actions: PR validates, merge to `main` deploys dev and runs the tests, merge to `release` deploys prod. Promotion workflow for Genie JSON via `bundle generate genie-space`. |
 | C10 | Documentation | README, architecture diagram, per-module notes, this document and its appendices. |
 
 ### 4.1.1 Design principle: the smallest data model that still teaches
 
-Three input files and four gold tables is the floor, not a convenience. Each table earns its place by exercising something a Genie or metric view student must see:
+Three input files and four core gold tables (plus the listing-grain `fact_listing_activity`) is the floor, not a convenience. Each table earns its place by exercising something a Genie or metric view student must see:
 
 | Need | Why a single wide table would not do |
 |---|---|
@@ -85,12 +86,12 @@ Three input files and four gold tables is the floor, not a convenience. Each tab
 
 Cut from the earlier draft: four quarterly snapshots and SCD Type 2 (now stretch S6), `dim_neighbourhood` and the geojson, `dim_date`, and `fact_listing_snapshot`. None of them served the three pillars directly.
 
-### 4.2 Stretch (only if core is done by Day 11)
+### 4.2 Stretch (only once core is done)
 
 | ID | Component | Why stretch |
 |---|---|---|
 | S1 | Same orchestrator deployed to Model Serving with `agents.deploy` and resource passthrough | Documented as legacy, but still what many clients run and what the certifications covered. Also exercises `DatabricksGenieSpace` resources and the `run_as` restriction. |
-| S2 | GitHub Actions: PR validates, merge to `main` deploys dev and runs integration tests, merge to `release` deploys prod | Moved into core on 2026-10-08, kept minimal for teaching. Signs in as the prod service principal from GitHub environments `ci` and `prod`: OAuth client secret now, workload identity federation once an account admin creates the policies (R-17). Design in `.dev/cicd-and-tests-proposal.md`. |
+| S2 | GitHub Actions: PR validates, merge to `main` deploys dev and runs integration tests, merge to `release` deploys prod | Moved into core on 2026-10-08, kept minimal for teaching. Signs in as the prod service principal from GitHub environments `ci` and `prod`: OAuth client secret now, workload identity federation once an account admin creates the policies (R-17). As built: `.dev/cicd.md`. |
 | S3 | Materialize one metric view | Each materialized metric view owns its own pipeline; worth showing once the SQL-task path works. |
 | S4 | Second city (Budapest or Amsterdam) with a `city` dimension | Multi-city metric views; a second currency motivates a parameterized metric view. |
 | S6 | Quarterly snapshots with SCD Type 2 on `dim_listing` | Teaches AUTO CDC and a time dimension on listings. Cut from core because it adds files and tables without serving the Genie or metric view objectives. |
@@ -104,7 +105,7 @@ Cut from the earlier draft: four quarterly snapshots and SCD Type 2 (now stretch
 - **Streaming ingestion.** The pipeline is batch over files in a volume.
 - **The 47 MB detailed reviews file.** Free-text reviews are not needed for the review velocity metrics. The 9 MB summary reviews file (listing id and date) is enough for review velocity metrics.
 - **Neighbourhood files and geojson.** The neighbourhood comes from the `neighbourhood_cleansed` column in listings. Maps are not a teaching objective.
-- **Course recording.** Not part of the two weeks. Only the build and the structure.
+- **Course recording.** Not part of the build. Only the build and the structure.
 
 ## 5. Stakeholders and audience
 
@@ -142,7 +143,7 @@ The v0.2 draft targeted Databricks Free Edition. On 2026-10-02 the build moved t
 
 ### 6.3 Time
 
-Two weeks of intensive work, 2026-10-02 to 2026-10-15.
+No fixed end date (D15, 2026-10-08). The phase order is in `.dev/plan.md` section 4.
 
 ## 7. Target architecture
 
@@ -211,13 +212,15 @@ Every gold table gets column comments and informational primary and foreign key 
 
 Revenue is no longer derived from the calendar: the 2026 export has no calendar price, and a blocked night is not a booking. YAML for each view: [02-architecture.md, section 3](02-architecture.md#3-metric-view-definitions). Names follow the `<subject>_metrics` convention (changed 2026-10-05 from `mv_*`).
 
-Deployment: a `.sql` file with `CREATE OR REPLACE VIEW ... WITH METRICS LANGUAGE YAML`, run by a job `sql_task` with `catalog` and `schema` parameters and `EXECUTE IMMEDIATE`, because the YAML `source` must be a fully qualified literal.
+Built so far (D14): `availability_metrics` only; the other views are the design for when Agent A needs them.
+
+Deployment (D5): one `.sql` file per view in `bundle/src/metric_views/`, run by a `sql_task` in the `deploy_metric_views` job. The file sets `USE CATALOG` / `USE SCHEMA` from the `catalog` and `schema` job parameters, and the YAML uses bare table names.
 
 ### 7.3 Genie Agents
 
-**Agent A, San Francisco Market Analyst (Chat mode).** Sources: `market_metrics`, `availability_metrics`, `review_activity_metrics`, `dim_listing`. Curation plan, in the order Databricks recommends: UC comments and constraints first, then metric views, then SQL expressions (measures, filters, fields), then example SQL with parameters and usage guidance, then entity matching on `neighbourhood` and `room_type`, and only last a short General instructions block ("occupancy" means the proxy, how to handle ambiguous "last quarter", what "licensed" means). At least 20 benchmarks with gold SQL.
+**Agent A, San Francisco Market Analyst (Chat mode).** Sources (D14): `availability_metrics`, `dim_listing` (its own availability columns hidden) and `dim_host`; no fact is reachable through two paths. Curation plan, in the order Databricks recommends: UC comments and constraints first, then metric view metadata, then column configs and entity matching on `neighbourhood` and `room_type`, then example SQL, and only last a short General instructions block ("listings" excludes hotels, "occupancy" means the published estimate). At least 20 benchmarks with gold SQL, scored after each curation step.
 
-**Agent B, Host Operations and Compliance (Agent mode).** Sources: `compliance_metrics`, `dim_host`, `dim_listing`, plus the `documents` volume (32 PDFs). Questions mix tables and documents: "Which Mission District hosts with more than five listings have house rules that forbid parties, and how many of their listings are unlicensed?" Benchmarks in Agent mode use the LLM judge with evaluation notes. Neither agent sees bronze, silver or the raw fact tables; see [02-architecture.md, section 2](02-architecture.md#2-what-each-genie-agent-sees).
+**Agent B, Host Operations and Compliance (Agent mode).** Sources (D14): the `documents` volume (32 PDFs) only. Questions about house rules, the regulation, the neighbourhood reports and the data dictionary; one benchmark per document, judged by the LLM judge with evaluation notes. Questions that need numbers and documents go through the orchestrator. Details: [02-architecture.md, section 2](02-architecture.md#2-what-each-genie-agent-sees).
 
 ### 7.4 Serving
 
@@ -227,36 +230,34 @@ Deployment: a `.sql` file with `CREATE OR REPLACE VIEW ... WITH METRICS LANGUAGE
 
 ### 7.5 Bundle layout
 
+As built on 2026-10-08, with the planned additions marked:
+
 ```
-databricks-genie-in-production/
-  databricks.yml                 # bundle, engine: direct, variables, targets dev/prod
+.github/workflows/               # pr.yml, main.yml, release.yml
+bundle/
+  databricks.yml                 # bundle, variables, targets dev/prod
+  scripts.yml, scripts/          # one-time admin scripts (prod managers group)
   resources/
-    schema.yml                   # gold schema + volumes (raw, pdfs)
-    pipeline.yml                 # serverless SDP pipeline
-    job.yml                      # pipeline task -> metric_views sql_task
-    genie_market.yml             # genie_spaces: market_analyst
-    genie_host_ops.yml           # genie_spaces: host_ops
-    app_genie_chat.yml           # apps: genie chat (resources: genie_space, sql_warehouse)
-    app_orchestrator.yml         # apps: orchestrator (resources: both genie_spaces, experiment)
+    schemas.yml                  # raw and airbnb schemas, files and documents volumes
+    airbnb_pipeline.yml          # serverless SDP pipeline
+    setup_workspace.job.yml      # copies source files into the volumes
+    metric_views.job.yml         # one sql_task per metric view
+    tests.job.yml                # SQL assertions on gold and metric views
+    (planned) genie_market.yml, genie_host_ops.yml, app_genie_chat.yml, app_orchestrator.yml
   src/
-    pipeline/                    # SDP SQL/Python
-    sql/metric_views.sql
-    genie/market_analyst.geniespace.json
-    genie/host_ops.geniespace.json
-    apps/genie_chat/
-    apps/orchestrator/
-  tools/
-    generate_documents.py        # local PDF generation (fpdf2); output mirrored to S3 beside the CSVs
-  eval/
-    benchmarks_market.json       # mirrors Genie benchmarks, kept in git
-    benchmarks_host_ops.json
-    evaluate_orchestrator.py     # mlflow.genai.evaluate
-  docs/
+    pipeline/                    # bronze, silver, gold SQL
+    metric_views/                # one .sql file per view
+    tests/                       # assertion SQL
+    setup/                       # setup notebook
+    (planned) genie/*.geniespace.json, apps/genie_chat/, apps/orchestrator/
+  (planned) eval/                # benchmarks_market.json, benchmarks_host_ops.json, evaluate_orchestrator.py
+tools/
+  generate_documents.py          # local PDF generation; output mirrored to S3 beside the CSVs
 ```
 
-Promotion workflow for Genie configuration: curate in the dev agent UI, run `databricks bundle generate genie-space --resource <key> --force`, review the JSON diff in a pull request, deploy to prod, run benchmarks against prod. Prod agents are deployed once and then only updated, never recreated, to keep their `space_id`.
+Promotion workflow for Genie configuration: curate in the dev agent UI, run `databricks bundle generate genie-space --resource <key> --force`, review the JSON diff in a pull request, merge to `main` (CI deploys dev), merge to `release` (CI deploys prod), run benchmarks against prod. Prod agents are deployed once and then only updated, never recreated, to keep their `space_id`.
 
-No bundle-level `run_as`: it is forbidden when a model serving endpoint is in the bundle (relevant for S1). The `prod` target sets `run_as` to a service principal; `dev` runs as the deploying user.
+No bundle-level `run_as`: it is forbidden when a model serving endpoint is in the bundle (relevant for S1). The `prod` target sets `run_as` to the service principal, and CI deploys prod as that same service principal, so it also owns every prod object; `dev` runs as the deploying identity.
 
 ## 8. Functional requirements
 
@@ -303,7 +304,7 @@ No bundle-level `run_as`: it is forbidden when a model serving endpoint is in th
 | D7 | Apps use user authorization, not the app service principal, for Genie calls. | Row filters apply, and service principal Genie usage is billed with no free allowance. |
 | D8 | Model Serving deployment is stretch, taught as "legacy but common". | Docs call it legacy for new agents; many clients still run it. |
 | D13 | Each bundle target owns its own schemas, and every resource refers to a schema through `${resources.schemas.<key>.name}`, never through the bare variable. | Decided 2026-10-05. `mode: development` prefixes schema names with `dev_<user>_` (dev publishes to `genie_reference.dev_<user>_airbnb`, prod to `genie_reference.airbnb`), so isolation is automatic. The earlier assumption that schemas are not prefixed was wrong; a variable-based path such as the pipeline's `source_path` must be built from the resource name or dev reads prod's schema. |
-| D14 | Agent A answers from the metric views and gold tables; Agent B answers from the documents. Metric views are reduced to what exists (`booking_reference`) and grow only when Agent A curation shows a need. | Decided 2026-10-08. Splits the two agents by source type (structured versus documents), which the orchestrator then routes between, and keeps the semantic layer from growing ahead of a proven need. Supersedes the two-view minimum in FR-4. |
+| D14 | Agent A answers from the metric views and gold tables; Agent B answers from the documents. Metric views are reduced to what exists (`availability_metrics`) and grow only when Agent A curation shows a need. | Decided 2026-10-08. Splits the two agents by source type (structured versus documents), which the orchestrator then routes between, and keeps the semantic layer from growing ahead of a proven need. Supersedes the two-view minimum in FR-4. |
 | D15 | Each component goes into the bundle and through CI as soon as it is built; the plan has no fixed dates. | Decided 2026-10-08. Ownership, privilege and naming problems only appear when CI deploys a component (two such problems appeared on the first prod release), so they are found per component rather than in a final bundling phase. Build phases and their order are in `.dev/plan.md` section 4. |
 
 ### 10.2 Open
@@ -317,21 +318,9 @@ No bundle-level `run_as`: it is forbidden when a model serving endpoint is in th
 | D12 | Should the course show a second workspace as an optional cross-workspace promotion module? | Depends on access to a second workspace. |
 
 
-## 11. Two-week plan
+## 11. Build phases
 
-> Superseded on 2026-10-08 (D15): no fixed dates. The current phase order is in `.dev/plan.md` section 4. The table below is kept as the original plan.
-
-
-| Days | Phase | Exit criteria |
-|---|---|---|
-| Day 1 (Oct 2) | **Feasibility spike in the target workspace.** Verify every **[verify]** item: Genie Agent creation, Agent mode, "Analyze Files in Volumes" toggle, metric view DDL on the warehouse, CLI 1.19 bundle deploy with direct engine, `genie_spaces` deploy, app creation and its auto-created service principal, PyPI reachability from serverless, model serving endpoint creation. | Go/no-go table filled in; fallbacks chosen for any red item. |
-| Days 2 to 3 | **Data and pipeline.** Download three files, upload to the volume, pipeline bronze to the four gold tables, comments and constraints, copy PDFs into the documents volume. | FR-1 to FR-3, FR-13 pass. |
-| Days 4 to 5 | **Metric views.** Two views, agent metadata, snowflake join, window measure, SQL task deployment; parameterized view if time allows. | FR-4 passes; queries documented. |
-| Days 6 to 8 | **Genie Agents.** Build both agents in the UI, curate step by step while recording notes on what each change does to answers, write benchmarks, attach PDF volume. | FR-5, FR-6 pass; benchmark scores recorded before and after each curation step. |
-| Days 9 to 10 | **Serving.** App 1 from template with OBO; App 2 from the multi-agent template with both Genie MCP servers; MLflow traces; small evaluation set. | FR-8 to FR-10 pass. |
-| Days 11 to 12 | **Bundles.** Generate Genie JSON, wire all resources, dev and prod targets, per-target JSON handling, promotion workflow, README. | FR-7, FR-11, FR-12 pass; clean-clone test. |
-| Day 13 | **Hardening and buffer.** Clean-clone test, fix the ugliest parts, write module notes. | Success criteria in 3.2 checked. |
-| Day 14 (Oct 15) | **Course outline.** Map the build to modules and lessons; list recordings needed. | Outline document exists. |
+No fixed dates (D15, 2026-10-08). The phases, their order, state and exit criteria are kept in one place: `.dev/plan.md` section 4. The original two-week schedule (2026-10-02 to 2026-10-15) is in this file's git history.
 
 ## 12. Risk register
 
@@ -339,21 +328,21 @@ Likelihood and impact on a 1 to 3 scale. Score is their product.
 
 | ID | Risk | L | I | Score | Mitigation | Trigger / owner |
 |---|---|---|---|---|---|---|
-| R-1 | "Analyze files in volumes" (Beta) is unavailable or not toggleable in the workspace, breaking Agent B's PDF story. | 2 | 3 | 6 | Day 1 check. Fallback: PDF upload into a conversation (Beta, UI only), or move PDF content into a `documents` table via `ai_parse_document` and keep Agent B structured-only. | Day 1 spike; author |
-| R-2 | Genie Agents or Agent mode depend on an account-level setting (partner-powered AI, cross-geo) that is off and needs an account admin. | 1 | 3 | 3 | Day 1 check; request the toggle early. Fallback: Chat mode only for both agents. | Day 1 spike |
+| R-1 | "Analyze files in volumes" (Beta) is unavailable or not toggleable in the workspace, breaking Agent B's PDF story. | 2 | 3 | 6 | Check before phase 6 (Agent B). Fallback: PDF upload into a conversation (Beta, UI only), or move PDF content into a `documents` table via `ai_parse_document` and keep Agent B structured-only. | Before phase 6; author |
+| R-2 | Genie Agents or Agent mode depend on an account-level setting (partner-powered AI, cross-geo) that is off and needs an account admin. | 1 | 3 | 3 | Check before phase 5; request the toggle early. Fallback: Chat mode only for both agents. | Before phase 5 |
 | R-3 | Serverless cost creeps during curation: repeated full refreshes of the 2.7 million row calendar table and long warehouse sessions. | 2 | 1 | 2 | Load data once; keep calendar at one snapshot; prefer selective refresh; set a budget alert on the workspace. | Monthly usage review |
 | R-4 | Dev and prod share one catalog; a deploy with the wrong `-t` writes into the other target's schema. | 2 | 2 | 4 | `mode: development` prefixes dev resources; schema name comes from the target; `prod` is never the default target. | Unexpected tables in a schema |
 | R-5 | Genie `space_id` changes on redeploy, breaking App resources and losing history. | 2 | 3 | 6 | Deploy prod agents once; reference `${resources.genie_spaces.X.space_id}` in app resources so apps follow; never change key or `parent_path`. | Any prod recreate |
-| R-6 | Genie JSON needs per-target fully qualified names; hand-maintaining two JSON files drifts. | 3 | 2 | 6 | Single source JSON for dev plus a tokenizing script producing the prod file at deploy time; test the `serialized_space` variable substitution path on Day 11. | JSON diff shows catalog names |
-| R-7 | Two apps times two targets is four running apps to keep alive, pay for and explain. | 2 | 1 | 2 | Decision D4; default to prod-only apps with local dev runs. | Day 9 |
-| R-8 | Managed MCP servers for Genie are Public Preview and may change or not be enabled. | 2 | 2 | 4 | Fallback: `GenieAgent` from `databricks-langchain` calling the Conversation API directly. | Day 9 |
-| R-9 | Model Serving endpoint quota or permissions in the workspace block S1. | 1 | 1 | 1 | Stretch only. | Day 1 spike |
-| R-10 | Benchmarks cannot be run from the API, weakening the CI gate story. | 2 | 2 | 4 | Build a small Conversation API harness with gold SQL comparison logged to MLflow (D10). | Day 7 |
+| R-6 | Genie JSON needs per-target fully qualified names; hand-maintaining two JSON files drifts. | 3 | 2 | 6 | Single source JSON for dev plus a tokenizing script producing the prod file at deploy time; test the `serialized_space` variable substitution path with an empty agent before curating Agent A. | JSON diff shows catalog names |
+| R-7 | Two apps times two targets is four running apps to keep alive, pay for and explain. | 2 | 1 | 2 | Decision D4; default to prod-only apps with local dev runs. | Before phase 7 |
+| R-8 | Managed MCP servers for Genie are Public Preview and may change or not be enabled. | 2 | 2 | 4 | Fallback: `GenieAgent` from `databricks-langchain` calling the Conversation API directly. | Before phase 8 |
+| R-9 | Model Serving endpoint quota or permissions in the workspace block S1. | 1 | 1 | 1 | Stretch only. | Before S1 |
+| R-10 | Benchmarks cannot be run from the API, weakening the CI gate story. | 2 | 2 | 4 | Build a small Conversation API harness with gold SQL comparison logged to MLflow (D10). | Phase 9 |
 | R-11 | 2X-Small warehouse makes Genie answers slow (tens of seconds), hurting recordings. | 2 | 2 | 4 | Pre-warm the warehouse; keep facts small; cut to results in editing. | Benchmark timings |
 | R-12 | Platform churn invalidates course content: renames in 2026 alone touched Genie, bundles, pipelines, agents; Supervisor Agent closed within eight months of GA; Genie pricing changes on 2027-02-01. | 3 | 2 | 6 | Teach concepts over screens; record the UI last; keep a "verified against docs dated X" note per module; plan a re-verification pass before publishing. | Any release note |
 | R-13 | Data policy: Inside Airbnb asks not to republish raw data. | 2 | 2 | 4 | Students download data themselves; redistribute only derived artifacts; attribute and consider donating. | Before any publishing |
-| R-14 | Outbound internet restrictions block downloads or `pip install` in notebooks. | 2 | 2 | 4 | Students download locally and upload; pin packages via app `requirements.txt`; Day 1 reachability test. | Day 1 spike |
-| R-15 | Unfamiliar or newly renamed surfaces slow the build beyond two weeks. | 2 | 2 | 4 | Day-by-day plan with exit criteria; stretch items pre-cut; use the official templates rather than writing apps from scratch. | Any phase slipping more than a day |
+| R-14 | Outbound internet restrictions block downloads or `pip install` in notebooks. | 2 | 2 | 4 | Students download locally and upload; pin packages via app `requirements.txt`. The setup job reads the S3 mirror over `s3a://`, which needs `SELECT ON ANY FILE` for a non-admin identity (granted to the service principal on 2026-10-08); HTTPS download would remove that grant. | Setup job failures |
+| R-15 | Unfamiliar or newly renamed surfaces slow the build. | 2 | 2 | 4 | Phases with exit criteria; stretch items pre-cut; use the official templates rather than writing apps from scratch. | Any phase taking much longer than planned |
 | R-16 | Fast-moving Python packages (databricks-ai-bridge 0.22, databricks-openai 0.17, mlflow 3.16 as of Oct 2026) break templates. | 2 | 2 | 4 | Pin versions in `pyproject.toml`; follow the template pins. | Import errors |
 | R-17 | No account-level access to configure OIDC federation for CI (S2). Occurred 2026-10-08: the author is a workspace admin but not an account admin. | 2 | 1 | 2 | OAuth M2M with a client secret for the workspace service principal, stored as GitHub environment secrets; switch to federation once an account admin creates the policies. | Occurred |
 | R-18 | The `price` column is exported as text with a dollar sign and thousands separators; the 2026 calendar export has no price column at all. | 3 | 1 | 3 | Parse to `nightly_price` in silver (null for 19 percent); revenue comes from the occupancy model on `fact_listing_activity`, never from the calendar; benchmark a price question early. | Benchmark failures on price |

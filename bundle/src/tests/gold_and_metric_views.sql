@@ -44,13 +44,13 @@ SELECT assert_true(
 -- MEASURE() must equal the same aggregate written by hand on the gold tables.
 SELECT assert_true(
   (SELECT COUNT(*)
-   FROM (SELECT neighborhood, MEASURE(availability_ratio) AS ratio
-         FROM booking_reference GROUP BY neighborhood) mv
+   FROM (SELECT neighbourhood, MEASURE(availability_ratio) AS ratio
+         FROM availability_metrics GROUP BY neighbourhood) mv
    FULL OUTER JOIN
-        (SELECT l.neighbourhood AS neighborhood, AVG(CAST(c.is_available AS INT)) AS ratio
+        (SELECT l.neighbourhood, AVG(CAST(c.is_available AS INT)) AS ratio
          FROM fact_calendar c JOIN dim_listing l USING (listing_id)
          WHERE c.is_available IS NOT NULL
          GROUP BY l.neighbourhood) gold
-     USING (neighborhood)
+     USING (neighbourhood)
    WHERE mv.ratio IS NULL OR gold.ratio IS NULL OR abs(mv.ratio - gold.ratio) > 1e-9) = 0,
-  'booking_reference: availability_ratio by neighborhood differs from gold');
+  'availability_metrics: availability_ratio by neighbourhood differs from gold');
