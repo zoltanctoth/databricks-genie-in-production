@@ -63,9 +63,9 @@ Many practitioners last worked hands-on with Databricks before the 2024 to 2026 
 |---|---|---|
 | C1 | Dataset | Inside Airbnb, San Francisco, one snapshot (2026-06-14), three files: detailed `listings.csv.gz`, `calendar.csv.gz`, summary `reviews.csv`. Loaded into a UC volume by the student. |
 | C2 | Data engineering | One serverless Lakeflow Spark Declarative Pipeline: bronze (three raw files), silver (typed, cleansed), gold (four-table star schema with UC comments and informational PK/FK constraints). |
-| C3 | Semantic layer | Two metric views in gold (a third, parameterized one is optional) with agent metadata (synonyms, display names, formats), composed measures, a snowflake join, one window measure. Deployed via SQL task because bundles have no metric view resource. |
-| C4 | Genie Agent A: "San Francisco Market Analyst" | Chat mode. Sources: market metric views plus two or three gold tables. Full curation: joins, SQL expressions (measures, filters, fields), example SQL, entity matching, instructions, 20+ benchmarks. |
-| C5 | Genie Agent B: "Host Operations and Compliance" | Agent mode. Sources: host and review metric views, gold tables, plus a UC volume of 32 PDFs (ten neighbourhood market reports, twenty host house-rules sheets with synthetic rules, one short-term rental regulation summary, one data dictionary). The PDFs are generated locally by `tools/generate_documents.py` and mirrored next to the CSVs, so the student copies them into a volume like the data. Demonstrates structured plus unstructured answers. |
+| C3 | Semantic layer | Metric views in gold with agent metadata (synonyms, display names, formats), deployed by a job SQL task because bundles have no metric view resource. Reduced on 2026-10-08 (D14): `booking_reference` (calendar availability with a snowflake join to listing and host) exists; further views are added only when Agent A curation shows a need. |
+| C4 | Genie Agent A: "San Francisco Market Analyst" | Chat mode. Sources: the metric views plus gold tables (D14). Full curation: joins, SQL expressions (measures, filters, fields), example SQL, entity matching, instructions, 20+ benchmarks. |
+| C5 | Genie Agent B: "Host Operations and Compliance" | Agent mode. Sources: the UC volume of 32 PDFs (ten neighbourhood market reports, twenty host house-rules sheets with synthetic rules, one short-term rental regulation summary, one data dictionary), D14. The PDFs are generated locally by `tools/generate_documents.py` and mirrored next to the CSVs, so the student copies them into a volume like the data. Demonstrates document answers next to Agent A's structured answers. |
 | C6 | Serving 1: Genie chat app | Databricks App calling the Genie Conversation API with user authorization (on-behalf-of), so row filters and the per-user free allowance apply. |
 | C7 | Serving 2: custom orchestrator agent | Custom agent on Databricks Apps (MLflow AgentServer, ResponsesAgent schema) consuming both Genie Agents through the managed Genie MCP servers. This is the hand-built replacement for the Supervisor Agent pattern. |
 | C8 | Evaluation | Genie benchmarks for each agent (SQL correctness at the Genie layer). MLflow 3 `mlflow.genai.evaluate` with ToolCallCorrectness and Correctness scorers for the orchestrator (routing correctness). |
@@ -303,6 +303,8 @@ No bundle-level `run_as`: it is forbidden when a model serving endpoint is in th
 | D7 | Apps use user authorization, not the app service principal, for Genie calls. | Row filters apply, and service principal Genie usage is billed with no free allowance. |
 | D8 | Model Serving deployment is stretch, taught as "legacy but common". | Docs call it legacy for new agents; many clients still run it. |
 | D13 | Each bundle target owns its own schemas, and every resource refers to a schema through `${resources.schemas.<key>.name}`, never through the bare variable. | Decided 2026-10-05. `mode: development` prefixes schema names with `dev_<user>_` (dev publishes to `genie_reference.dev_<user>_airbnb`, prod to `genie_reference.airbnb`), so isolation is automatic. The earlier assumption that schemas are not prefixed was wrong; a variable-based path such as the pipeline's `source_path` must be built from the resource name or dev reads prod's schema. |
+| D14 | Agent A answers from the metric views and gold tables; Agent B answers from the documents. Metric views are reduced to what exists (`booking_reference`) and grow only when Agent A curation shows a need. | Decided 2026-10-08. Splits the two agents by source type (structured versus documents), which the orchestrator then routes between, and keeps the semantic layer from growing ahead of a proven need. Supersedes the two-view minimum in FR-4. |
+| D15 | Each component goes into the bundle and through CI as soon as it is built; the plan has no fixed dates. | Decided 2026-10-08. Ownership, privilege and naming problems only appear when CI deploys a component (two such problems appeared on the first prod release), so they are found per component rather than in a final bundling phase. Build phases and their order are in `.dev/plan.md` section 4. |
 
 ### 10.2 Open
 
@@ -316,6 +318,9 @@ No bundle-level `run_as`: it is forbidden when a model serving endpoint is in th
 
 
 ## 11. Two-week plan
+
+> Superseded on 2026-10-08 (D15): no fixed dates. The current phase order is in `.dev/plan.md` section 4. The table below is kept as the original plan.
+
 
 | Days | Phase | Exit criteria |
 |---|---|---|

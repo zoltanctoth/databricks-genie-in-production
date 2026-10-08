@@ -1,6 +1,6 @@
 # Project plan and progress
 
-Read this file first in every session. It is the hand-off between sessions: what we are building, the rules we work by, the two-week plan, and the **progress marker** that says where we are. Keep the marker current (rule 1).
+Read this file first in every session. It is the hand-off between sessions: what we are building, the rules we work by, the build phases, and the **progress marker** that says where we are. Keep the marker current (rule 1).
 
 Everything Claude-specific (this plan, session notes, scratch) lives in `.dev/`. The rest of the repo is the public tutorial.
 
@@ -10,7 +10,7 @@ Everything Claude-specific (this plan, session notes, scratch) lives in `.dev/`.
 2. **This is a working repo, not a personal log.** No references to the author's career, job changes, interviews, or to anyone reviewing the material. Write everything as a reference architecture and tutorial for its readers.
 3. **English only** in all repo files.
 4. **Verify against docs, not memory.** Databricks renamed most of this stack in 2026 (Genie Spaces to Genie Agents, DABs to Declarative Automation Bundles, DLT to Lakeflow Spark Declarative Pipelines, Vector Search to AI Search). Every module note states the doc page and "Last updated" date it was checked against. Items marked **[verify]** in the requirements doc are unconfirmed until the Day 1 spike proves them in the target workspace.
-5. **Smallest thing that still teaches.** Prefer simplicity; push back only when a simplification would hurt a teaching goal. Ask before widening scope. Stretch items stay stretch until core is done (Day 11 rule).
+5. **Smallest thing that still teaches.** Prefer simplicity; push back only when a simplification would hurt a teaching goal. Ask before widening scope. Stretch items stay stretch until core is done.
 6. **Any workspace, no cloud lock-in.** Every core-path feature runs on a standard Databricks workspace with Unity Catalog and serverless compute. The author builds on an Azure workspace; the only cloud-specific value in the repo is `workspace.host` in `databricks.yml`. Free Edition was dropped on 2026-10-02 (it has no on-demand clusters, which developing SDP streaming tables needs); do not reintroduce Free Edition wording.
 7. **No Python installs outside `~/.venv`.** Add dependencies to `~/pyproject.toml` and run `uv sync` from `~`. Code that ships to Databricks pins its own versions in the app `requirements.txt` or `pyproject.toml`.
 8. **Source of truth is the Markdown in this repo.** Any shared rendering (artifact page, PDF) is regenerated from the file, never edited directly.
@@ -38,7 +38,7 @@ Capstone on Inside Airbnb San Francisco data (snapshot 2026-06-14, three files):
 | C9 | Bundle | One bundle, direct engine, `dev` and `prod` targets in one workspace, Genie JSON promotion via `bundle generate genie-space` |
 | C10 | Docs | README, diagram, per-module notes with verification dates |
 
-Full detail, decisions D1 to D13 (D13: dev mode prefixes schemas with `dev_<user>_`; resources reference schemas by `${resources.schemas.<key>.name}`), functional requirements, risk register and open questions: [docs/01-requirements-and-risks.md](../docs/01-requirements-and-risks.md). The build specification (pipeline tables and rules, Genie sources, metric view YAML, orchestration) is [docs/02-architecture.md](../docs/02-architecture.md); read it before writing silver, gold or metric views. Research appendices: [docs/research/](../docs/research/).
+Full detail, decisions D1 to D15 (D13: dev mode prefixes schemas with `dev_<user>_`; resources reference schemas by `${resources.schemas.<key>.name}`; D14: Agent A on metric views and gold tables, Agent B on the documents; D15: each component goes into the bundle and through CI as it is built, no fixed dates), functional requirements, risk register and open questions: [docs/01-requirements-and-risks.md](../docs/01-requirements-and-risks.md). The build specification (pipeline tables and rules, Genie sources, metric view YAML, orchestration) is [docs/02-architecture.md](../docs/02-architecture.md); read it before writing silver, gold or metric views. Research appendices: [docs/research/](../docs/research/).
 
 Decisions already taken (do not reopen without the author): standard workspace, dev and prod as two bundle targets in it (D1, revised 2026-10-02); San Francisco, not Budapest (D2); Supervisor Agent out, hand-built MCP orchestrator in (D3); metric views via SQL task, not a bundle resource (D5); Genie config in git as generated `.geniespace.json` (D6); apps use on-behalf-of user auth (D7); Model Serving deployment is stretch (D8).
 
@@ -58,29 +58,34 @@ Open decisions: D4 (apps in both targets or prod only, leaning prod-only), D9, D
 | Target bundle layout | requirements doc section 7.5 (`databricks.yml`, `resources/`, `src/`, `eval/`) |
 | Dataset mirror (author-side) | `s3://dbx-data-public/airbnb-sf/` (plain `listings.csv`, `calendar.csv`, summary `reviews.csv`, a CC BY 4.0 `LICENSE.md`, and `documents/` with the 32 Genie PDFs regenerated by `tools/generate_documents.py` and synced with `aws s3 sync build/documents s3://dbx-data-public/airbnb-sf/documents/ --profile tz --delete`; San Francisco snapshot 2026-06-14, uploaded 2026-10-02 with AWS profile `tz`). Bucket policy (`.dev/s3-bucket-policy.json`, applied 2026-10-02): every object publicly readable, anonymous listing allowed only under `airbnb-sf/`, bucket ACL private. Students still download from Inside Airbnb; see the republishing note in `docs/research/dataset.md` |
 
-## 4. The two-week plan (2026-10-02 to 2026-10-15)
+## 4. Build phases
 
-| Day | Date | Phase | Exit criteria |
+No fixed dates (dropped 2026-10-08, D15). Each component goes into the bundle and through CI as soon as it is built, not in a final bundling phase.
+
+| # | Phase | State | Exit criteria |
 |---|---|---|---|
-| 0 | Oct 1 | Requirements and research | Requirements v0.2 drafted; research appendices written |
-| 1 | Oct 2 | Feasibility spike in the target workspace | Every **[verify]** item has a go/no-go; fallbacks chosen for red items |
-| 2 to 3 | Oct 3 to 4 | Data and pipeline | FR-1 to FR-3, FR-13 pass: files in volume, four gold tables, comments and constraints, PDFs generated |
-| 4 to 5 | Oct 5 to 6 | Metric views | FR-4 passes: two views with agent metadata, snowflake join, window measure, SQL task deploy |
-| 6 to 8 | Oct 7 to 9 | Genie Agents | FR-5, FR-6 pass: both agents curated, 20+ benchmarks each, scores recorded per curation step |
-| 9 to 10 | Oct 10 to 11 | Serving | FR-8 to FR-10 pass: App 1 with OBO, App 2 with MCP, MLflow traces, small eval set |
-| 11 to 12 | Oct 12 to 13 | Bundles | FR-7, FR-11, FR-12 pass: Genie JSON generated, dev and prod deploy from clean clone |
-| 13 | Oct 14 | Hardening and buffer | Clean-clone test passes; module notes written; success criteria in requirements 3.2 checked |
-| 14 | Oct 15 | Course outline | Outline document maps the build to modules and lessons |
+| 1 | Requirements and research | done | Requirements drafted; research appendices written |
+| 2 | Data and pipeline | done | Files in volumes, five gold tables with comments and constraints, PDFs generated |
+| 3 | Metric views | reduced (D14) | `booking_reference` deployed by the `deploy_metric_views` job; more views only when Agent A curation shows a need |
+| 4 | CI/CD and tests | done | PR validates, merge to `main` deploys dev and runs the tests, merge to `release` deploys prod; all green on GitHub |
+| 5 | Genie Agent A | next | Chat mode on metric views and gold tables; curated, 20+ benchmarks, scores recorded per curation step; in the bundle and deployed by CI |
+| 6 | Genie Agent B | | Agent mode on the 32 PDFs in the `documents` volume; one benchmark per document; in the bundle and deployed by CI |
+| 7 | App 1 | | Databricks App on the Genie Conversation API with user authorization (OBO); in the bundle |
+| 8 | Orchestrator app | | Agent on Databricks Apps calling both Genie Agents through managed MCP servers; in the bundle |
+| 9 | Evaluation | | Genie benchmarks per agent and `mlflow.genai.evaluate` for orchestrator routing, run by a manual or scheduled workflow (not a merge gate) |
+| 10 | Hardening and course outline | | Clean-clone test, module notes, outline mapping the build to lessons |
 
-Stretch (only if core is done by Day 11): S1 Model Serving deploy, S2 GitHub Actions, S3 materialized metric view, S4 second city, S5 Genie One walkthrough, S6 SCD2 snapshots.
+Stretch (only once core is done): S1 Model Serving deploy, S3 materialized metric view, S4 second city, S5 Genie One walkthrough, S6 SCD2 snapshots. S2 (GitHub Actions) moved into core as phase 4.
 
 ## 5. Where we are
 
 <!-- PROGRESS MARKER. Keep this section current (rule 1). Format: Now / Done / Next / Blocked. -->
 
-**Now:** 2026-10-08, Days 4 to 5 (metric views). First metric view `booking_reference` deployed on dev by the `deploy_metric_views` job. Open from the data engineering phase: prod deploy and run (Next 1), bootstrap script (Next 0). CI/CD and test design decided on 2026-10-08 in `.dev/cicd-and-tests-proposal.md` (PR to `main`: validate; merge to `main`: deploy dev and run integration tests; merge to `release`: deploy prod); implemented by hand. Implemented 2026-10-08 (`pr.yml`, `main.yml`, `release.yml`, `tests` job), awaiting review; one open privilege issue for `setup_workspace` as the service principal (Blocked).
+**Now:** 2026-10-08, phase 5 (Genie Agent A) is next. Phases 1, 2 and 4 are done; phase 3 is reduced to the one metric view that exists. CI/CD is green on GitHub for all three stages, including the first prod release.
 
 **Done:**
+- 2026-10-08: Scope and schedule replanned (D14, D15): Agent A uses the metric views and gold tables, Agent B the documents; App 1 stays in scope; each component is bundled and deployed by CI as it is built; no fixed dates.
+- 2026-10-08: CI/CD green on GitHub: `pr.yml` on a PR, `main.yml` (CI's dev copy `dev_dab_principal_*`, pipeline, metric views, tests) and `release.yml` (first prod release). Two fixes on the way, both one-time and done by the author: (a) `GRANT SELECT ON ANY FILE` to the service principal, because `setup_workspace` reads a raw `s3a://` path and workspace admins have that legacy privilege implicitly while the service principal does not; the grant lives in the `hive_metastore` scope, so `SHOW GRANTS ON ANY FILE` only lists it in that catalog context; (b) prod schemas, volumes and the pipeline had been deployed and owned by the author, so the service principal could not update grants (`MANAGE` missing) or take pipeline ownership (admin only); ownership was handed to the service principal. Rule from it: prod is deployed only as the service principal, by `release.yml` or as break-glass with `--profile genie-prod-sp` from a clean `release` worktree. `run_as` for prod added to `databricks.yml` (safety net for runtime identity; it does not affect deploy-time ownership). README badges show the `main` and `release` runs.
 - 2026-10-08: CI/CD implemented, not yet run on GitHub. `.github/workflows/pr.yml` (validate both targets, prod plan in the job summary; renamed from `bundle-validate.yml`), `main.yml` (deploy dev, `setup_workspace`, pipeline, metric views, tests), `release.yml` (same for prod); all sign in with the client secret from GitHub environments `ci`/`prod`. `resources/tests.job.yml` with 14 `assert_true()` checks in `src/tests/gold_and_metric_views.sql`, passing on dev. Prod grant `WRITE_VOLUME` on the raw schema added. Dry run as the service principal: names are `dev_dab_principal_*` ([verify] resolved), validate and prod plan pass (6 add, 2 change, 0 delete); `setup_workspace` fails without `SELECT ON ANY FILE` (details in `.dev/cicd-and-tests-proposal.md`).
 - 2026-10-08: CI/CD design decided (`.dev/cicd-and-tests-proposal.md`): one service principal with two federation policies (GitHub environments `ci` and `prod`, `prod` restricted to the `release` branch); PR validates, merge to `main` deploys dev and runs the pipeline, metric views and a `tests` job, merge to `release` deploys prod. Scaffold `.github/workflows/bundle-validate.yml` (CLI `v1.19.0`, `github-oidc`, `bundle validate --strict` both targets; both pass locally). Finding: the repository was created after GitHub's 2026-07-15 switch, so its OIDC `sub` uses numeric IDs (`repo:zoltanctoth@445752/databricks-genie-in-production@1400199154:environment:<env>`); the Databricks docs example format would not match. The author's login is not an account admin (the account console shows only the workspace picker), so CI starts with an OAuth client secret (`DATABRICKS_CLIENT_SECRET` in the GitHub environments); `bundle-validate.yml` switched accordingly.
 - 2026-10-07: Metric view deployment settled (D5 updated). A `CREATE VIEW ... WITH METRICS` inside the pipeline fails (SDP accepts only MV/ST statements), so `resources/metric_views.job.yml` runs `src/metric_views/*.sql` as `sql_task`s on the warehouse from the new `warehouse_id` lookup variable. Each file does `USE CATALOG/USE SCHEMA IDENTIFIER({{catalog}}/{{schema}})` and uses bare table names in the YAML; verified that they resolve against the view's own schema. Findings: Spark SQL reads `''` inside a string as two adjacent literals (the quote is dropped), so `EXECUTE IMMEDIATE` strings need `\'`; the metrics folder must stay out of `src/pipeline/` because `airbnb_pipeline` globs `src/pipeline/**`. `booking_reference` on dev: availability ratio 0.539 non-Superhost, 0.451 Superhost.
@@ -100,16 +105,12 @@ Stretch (only if core is done by Day 11): S1 Model Serving deploy, S2 GitHub Act
 - 2026-10-01: Public name and GitHub metadata chosen; README reworked to tutorial-first; `.dev/plan.md` created as the session hand-off; personal and review-process references removed from all docs.
 
 **Next:**
-- CI/CD (S2 moved into core on 2026-10-08, kept minimal for teaching): follow the implementation order in `.dev/cicd-and-tests-proposal.md` (service principal OAuth secret, GitHub environments `ci` and `prod`, `release` branch, `release.yml` as the prod first deploy which covers Next 1, `main.yml`, `resources/tests.job.yml`).
-- Remaining metric views (`availability_metrics` rename question for `booking_reference`, `market_metrics`, `review_activity_metrics`, `compliance_metrics`) as `src/metric_views/*.sql` files plus one task each in `deploy_metric_views`.
-0. Recreate `scripts/bootstrap.sh` (catalog, `setup_manager_group`, deploy, setup job) and document `setup_manager_group` in the README deploy section. Note: `experimental.immutable_folder: true` in `databricks.yml` makes `bundle validate -t prod` fail with two unresolved `${resources.internal_immutable_snapshots...}` path errors on CLI v1.19.0; validation is clean without it.
-1. Run `setup_workspace` and `airbnb_pipeline` on prod once the prod deploy is done (the SP needs WRITE_VOLUME on the raw schema for the copy if the job runs as the SP; today the prod grants give it only READ_VOLUME there).
-3. Day 1 spike: run the remaining **[verify]** checklist items from requirements section 11 in the workspace; log the go/no-go table in `.dev/spike-day1.md` and fold confirmed facts into `docs/`.
-4. (done 2026-10-05) Gold layer.
-5. Write one benchmark question per PDF into `eval/benchmarks_host_ops.json`.
-6. Set the GitHub repo description and topics from the README.
+1. Phase 5, Genie Agent A: build in the UI on dev from `booking_reference` and the gold tables; curate step by step and record the benchmark score after each step; 20+ benchmarks. Then `bundle generate genie-space`, add the `genie_spaces` resource with per-target table names (R-6) and keep the `space_id` stable (R-5); deploy through CI.
+2. Phase 6, Genie Agent B: verify the "Analyze files in volumes" preview in the workspace (open Day 1 spike item); one benchmark question per PDF (`eval/benchmarks_host_ops.json`); bundle and CI as for Agent A.
+3. Phase 7 App 1, phase 8 orchestrator, phase 9 evaluation workflow (see section 4). D4 (apps in both targets or prod only) to settle before phase 7.
+4. Leftovers, any time: `scripts/bootstrap.sh` and the README deploy section (the README still names a `bootstrap.yml` that does not exist); `setup_workspace` over HTTPS so the `ANY FILE` grant can be revoked; rename `booking_reference` to `availability_metrics` (architecture naming); GitHub repo description and topics.
 
-**Blocked:** `setup_workspace` as the service principal needs `SELECT ON ANY FILE` to read the `s3a://` mirror; decide between granting it and switching the notebook to HTTPS downloads (`.dev/cicd-and-tests-proposal.md`, findings). Workload identity federation waits on an account admin; CI uses an OAuth client secret until then.
+**Blocked:** nothing. Workload identity federation for CI waits on an account admin; CI uses an OAuth client secret until then.
 
 ## 6. Session checklist
 
