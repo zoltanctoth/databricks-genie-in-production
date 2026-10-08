@@ -49,7 +49,7 @@ Many practitioners last worked hands-on with Databricks before the 2024 to 2026 
 ### 3.2 Success criteria for the core build
 
 - A fresh workspace can go from zero to both Genie Agents answering benchmark questions by following the README.
-- Each Genie Agent has at least 20 benchmark questions and scores above an agreed threshold (proposed: 80 percent "Good" in Chat mode).
+- Each Genie Agent has a small benchmark set that teaches the method (Agent A: 6 questions with gold SQL, D16) and scores at least 80 percent "Good" in Chat mode; CI fails below that.
 - Agent A answers availability questions only through a metric view, and no fact reaches an agent through two paths (D14).
 - `databricks bundle deploy -t dev` and `-t prod` both succeed from a clean clone; prod has no user-specific paths.
 - CI deploys every component: a merge to `main` deploys dev and passes the tests job, a merge to `release` deploys prod.
@@ -65,7 +65,7 @@ Many practitioners last worked hands-on with Databricks before the 2024 to 2026 
 | C1 | Dataset | Inside Airbnb, San Francisco, one snapshot (2026-06-14), three files: detailed `listings.csv.gz`, `calendar.csv.gz`, summary `reviews.csv`. Loaded into a UC volume by the student. |
 | C2 | Data engineering | One serverless Lakeflow Spark Declarative Pipeline: bronze (three raw files), silver (typed, cleansed), gold (four-table star schema with UC comments and informational PK/FK constraints). |
 | C3 | Semantic layer | Metric views in gold with agent metadata (synonyms, display names, formats), deployed by a job SQL task because bundles have no metric view resource. Reduced on 2026-10-08 (D14): `availability_metrics` (calendar availability with a snowflake join to listing and host) exists; further views are added only when Agent A curation shows a need. |
-| C4 | Genie Agent A: "San Francisco Market Analyst" | Chat mode. Sources: the metric views plus gold tables (D14). Full curation: joins, SQL expressions (measures, filters, fields), example SQL, entity matching, instructions, 20+ benchmarks. |
+| C4 | Genie Agent A: "San Francisco Market Analyst" | Chat mode. Sources: the metric views plus gold tables (D14). Full curation: joins, SQL expressions (measures, filters, fields), example SQL, entity matching, instructions, a small benchmark set (D16). |
 | C5 | Genie Agent B: "Host Operations and Compliance" | Agent mode. Sources: the UC volume of 32 PDFs (ten neighbourhood market reports, twenty host house-rules sheets with synthetic rules, one short-term rental regulation summary, one data dictionary), D14. The PDFs are generated locally by `tools/generate_documents.py` and mirrored next to the CSVs, so the student copies them into a volume like the data. Demonstrates document answers next to Agent A's structured answers. |
 | C6 | Serving 1: Genie chat app | Databricks App calling the Genie Conversation API with user authorization (on-behalf-of), so row filters and the per-user free allowance apply. |
 | C7 | Serving 2: custom orchestrator agent | Custom agent on Databricks Apps (MLflow AgentServer, ResponsesAgent schema) consuming both Genie Agents through the managed Genie MCP servers. This is the hand-built replacement for the Supervisor Agent pattern. |
@@ -218,7 +218,7 @@ Deployment (D5): one `.sql` file per view in `bundle/src/metric_views/`, run by 
 
 ### 7.3 Genie Agents
 
-**Agent A, San Francisco Market Analyst (Chat mode).** Sources (D14): `availability_metrics`, `dim_listing` (its own availability columns hidden) and `dim_host`; no fact is reachable through two paths. Curation plan, in the order Databricks recommends: UC comments and constraints first, then metric view metadata, then column configs and entity matching on `neighbourhood` and `room_type`, then example SQL, and only last a short General instructions block ("listings" excludes hotels, "occupancy" means the published estimate). At least 20 benchmarks with gold SQL, scored after each curation step.
+**Agent A, San Francisco Market Analyst (Chat mode).** Sources (D14): `availability_metrics`, `dim_listing` (its own availability columns hidden) and `dim_host`; no fact is reachable through two paths. Curation plan, in the order Databricks recommends: UC comments and constraints first, then metric view metadata, then column configs and entity matching on `neighbourhood` and `room_type`, then example SQL, and only last a short General instructions block ("listings" excludes hotels, "occupancy" means the published estimate). A small benchmark set with gold SQL (6 questions, D16), scored after each curation step and by CI on every merge to `main`.
 
 **Agent B, Host Operations and Compliance (Agent mode).** Sources (D14): the `documents` volume (32 PDFs) only. Questions about house rules, the regulation, the neighbourhood reports and the data dictionary; one benchmark per document, judged by the LLM judge with evaluation notes. Questions that need numbers and documents go through the orchestrator. Details: [02-architecture.md, section 2](02-architecture.md#2-what-each-genie-agent-sees).
 
@@ -267,7 +267,7 @@ No bundle-level `run_as`: it is forbidden when a model serving endpoint is in th
 | FR-2 | The pipeline builds bronze, silver and gold from the volume with one `bundle run`, and is idempotent. | Must |
 | FR-3 | Gold tables carry column comments and informational PK/FK constraints that Genie imports. | Must |
 | FR-4 | Metric views are created by a bundle-deployed SQL task and are parameterized by target catalog and schema. | Must |
-| FR-5 | Agent A answers at least 20 benchmark questions in Chat mode and the benchmark run is repeatable. | Must |
+| FR-5 | Agent A scores at least 80 percent on its benchmark questions in Chat mode, the run is repeatable, and CI fails below the threshold. | Must |
 | FR-6 | Agent B answers mixed table-plus-PDF questions in Agent mode with page-level citations. | Must, degrade to Should if the volumes preview cannot be enabled in the workspace |
 | FR-7 | Both agents are defined as `genie_spaces` resources and deploy to dev and prod targets with correct fully qualified table names per target. | Must |
 | FR-8 | App 1 lets a signed-in user chat with Agent A through the Genie API using their own identity. | Must |
@@ -306,6 +306,7 @@ No bundle-level `run_as`: it is forbidden when a model serving endpoint is in th
 | D13 | Each bundle target owns its own schemas, and every resource refers to a schema through `${resources.schemas.<key>.name}`, never through the bare variable. | Decided 2026-10-05. `mode: development` prefixes schema names with `dev_<user>_` (dev publishes to `genie_reference.dev_<user>_airbnb`, prod to `genie_reference.airbnb`), so isolation is automatic. The earlier assumption that schemas are not prefixed was wrong; a variable-based path such as the pipeline's `source_path` must be built from the resource name or dev reads prod's schema. |
 | D14 | Agent A answers from the metric views and gold tables; Agent B answers from the documents. Metric views are reduced to what exists (`availability_metrics`) and grow only when Agent A curation shows a need. | Decided 2026-10-08. Splits the two agents by source type (structured versus documents), which the orchestrator then routes between, and keeps the semantic layer from growing ahead of a proven need. Supersedes the two-view minimum in FR-4. |
 | D15 | Each component goes into the bundle and through CI as soon as it is built; the plan has no fixed dates. | Decided 2026-10-08. Ownership, privilege and naming problems only appear when CI deploys a component (two such problems appeared on the first prod release), so they are found per component rather than in a final bundling phase. Build phases and their order are in `.dev/plan.md` section 4. |
+| D16 | Agent A keeps a small benchmark set (6 questions) instead of 20 or more. | Decided 2026-10-08. Six questions are enough to teach benchmarks, scoring, the CI gate and curation; more questions add authoring time without a new lesson. Trade-off: one wrong answer moves the score by 17 points, so the 80 percent gate tolerates one failure and is sensitive to Genie's run-to-run variation. |
 
 ### 10.2 Open
 
