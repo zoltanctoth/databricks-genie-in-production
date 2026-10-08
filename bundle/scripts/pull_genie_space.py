@@ -1,10 +1,10 @@
 """Pull a deployed Genie Agent's configuration back into its bundle YAML.
 
 Curation happens in the Genie UI; a deploy overwrites the space with the YAML. Run
-this from bundle/ after every UI change so the change lands in git before the next
+this after every UI change so the change lands in git before the next
 deploy:
 
-    python3 scripts/pull_genie_space.py market_analyst -t dev --profile <profile>
+    uv run bundle/scripts/pull_genie_space.py market_analyst -t dev --profile <profile>
 
 It asks `bundle summary` for the target's space ID, catalog and schema (bundle
 scripts cannot read resource fields such as space_id), reads the space through the
@@ -16,9 +16,11 @@ block, so title and description stay as they are in the YAML.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 CATALOG_VAR = "${var.catalog}"
 SCHEMA_VAR = "${resources.schemas.schema.name}"
@@ -74,6 +76,7 @@ def main() -> None:
     parser.add_argument("-t", "--target", default="dev")
     parser.add_argument("--profile", required=True)
     args = parser.parse_args()
+    os.chdir(Path(__file__).resolve().parent.parent)  # bundle root, so it runs from any folder
     resource_file = f"resources/{args.key}.genie_space.yml"
 
     space_id, catalog, schema = target_values(args.key, args.target, args.profile)
