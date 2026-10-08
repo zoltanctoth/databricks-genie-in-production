@@ -1,0 +1,18 @@
+resources:
+  jobs:
+    tests:
+      name: tests
+      description: Regression tests for the gold tables and metric views. Run after the pipeline and deploy_metric_views.
+      # Read by the SQL files as {{catalog}} and {{schema}}. The schema name comes from
+      # the resource, so it carries the dev_<user>_ prefix in dev.
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${resources.schemas.schema.name}
+      tasks:
+        - task_key: gold_and_metric_views
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/tests/gold_and_metric_views.sql
