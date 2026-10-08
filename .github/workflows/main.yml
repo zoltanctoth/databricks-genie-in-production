@@ -1,0 +1,59 @@
+# Stage 2 of 3. Merge to main: deploy the dev target as the service principal
+# and run the whole chain as an integration test. Development mode prefixes
+# every name with the deploying identity, so CI gets its own copy
+# (dev_dab_principal_raw, dev_dab_principal_airbnb, "[dev dab_principal] ..." jobs)
+# next to each developer's copy.
+# Stage 1: pr.yml. Stage 3: release.yml. Design: .dev/cicd-and-tests-proposal.md.
+#
+# One-time setup: the `ci` GitHub environment (see pr.yml).
+
+name: Deploy dev and test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run at a time: two runs would deploy to and run against the same schemas.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    environment: ci
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    defaults:
+      run:
+        working-directory: bundle
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@v1.19.0
+
+      - name: Deploy
+        run: databricks bundle deploy -t dev
+
+      # Copies the source files into the volumes. Idempotent, and needed on the
+      # first run because CI's dev copy starts with empty volumes.
+      - name: Load source files
+        run: databricks bundle run setup_workspace -t dev
+
+      - name: Run pipeline
+        run: databricks bundle run airbnb_pipeline -t dev
+
+      - name: Create metric views
+        run: databricks bundle run deploy_metric_views -t dev
+
+      - name: Run tests
+        run: databricks bundle run tests -t dev

@@ -90,7 +90,7 @@ Cut from the earlier draft: four quarterly snapshots and SCD Type 2 (now stretch
 | ID | Component | Why stretch |
 |---|---|---|
 | S1 | Same orchestrator deployed to Model Serving with `agents.deploy` and resource passthrough | Documented as legacy, but still what many clients run and what the certifications covered. Also exercises `DatabricksGenieSpace` resources and the `run_as` restriction. |
-| S2 | GitHub Actions pipeline running validate, plan and deploy | Needs a service principal with OAuth M2M or an account-level OIDC federation policy; a CI story, not a Genie story. |
+| S2 | GitHub Actions: PR validates, merge to `main` deploys dev and runs integration tests, merge to `release` deploys prod | Moved into core on 2026-10-08, kept minimal for teaching. Signs in as the prod service principal from GitHub environments `ci` and `prod`: OAuth client secret now, workload identity federation once an account admin creates the policies (R-17). Design in `.dev/cicd-and-tests-proposal.md`. |
 | S3 | Materialize one metric view | Each materialized metric view owns its own pipeline; worth showing once the SQL-task path works. |
 | S4 | Second city (Budapest or Amsterdam) with a `city` dimension | Multi-city metric views; a second currency motivates a parameterized metric view. |
 | S6 | Quarterly snapshots with SCD Type 2 on `dim_listing` | Teaches AUTO CDC and a time dimension on listings. Cut from core because it adds files and tables without serving the Genie or metric view objectives. |
@@ -350,7 +350,7 @@ Likelihood and impact on a 1 to 3 scale. Score is their product.
 | R-14 | Outbound internet restrictions block downloads or `pip install` in notebooks. | 2 | 2 | 4 | Students download locally and upload; pin packages via app `requirements.txt`; Day 1 reachability test. | Day 1 spike |
 | R-15 | Unfamiliar or newly renamed surfaces slow the build beyond two weeks. | 2 | 2 | 4 | Day-by-day plan with exit criteria; stretch items pre-cut; use the official templates rather than writing apps from scratch. | Any phase slipping more than a day |
 | R-16 | Fast-moving Python packages (databricks-ai-bridge 0.22, databricks-openai 0.17, mlflow 3.16 as of Oct 2026) break templates. | 2 | 2 | 4 | Pin versions in `pyproject.toml`; follow the template pins. | Import errors |
-| R-17 | No account-level access to configure OIDC federation for CI (S2). | 2 | 1 | 2 | OAuth M2M with a workspace service principal, or "bundles in the workspace" UI deploy as the zero-secret alternative. | Day 11 |
+| R-17 | No account-level access to configure OIDC federation for CI (S2). Occurred 2026-10-08: the author is a workspace admin but not an account admin. | 2 | 1 | 2 | OAuth M2M with a client secret for the workspace service principal, stored as GitHub environment secrets; switch to federation once an account admin creates the policies. | Occurred |
 | R-18 | The `price` column is exported as text with a dollar sign and thousands separators; the 2026 calendar export has no price column at all. | 3 | 1 | 3 | Parse to `nightly_price` in silver (null for 19 percent); revenue comes from the occupancy model on `fact_listing_activity`, never from the calendar; benchmark a price question early. | Benchmark failures on price |
 
 ## 13. Open questions where practice matters more than documentation
