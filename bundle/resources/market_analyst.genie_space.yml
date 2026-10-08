@@ -1,0 +1,252 @@
+resources:
+  genie_spaces:
+    market_analyst:
+      title: San Francisco Market Analyst
+      description: |-
+        Answers questions about San Francisco Airbnb listings, hosts and calendar availability, from the Inside Airbnb snapshot of 2026-06-14.
+
+        Availability comes from the calendar (open versus blocked nights). Occupancy and revenue are Inside Airbnb's published estimates for the last 365 days, not measured bookings.
+      warehouse_id: ${var.warehouse_id}
+      # Inline, not file_path: bundle substitution only runs on YAML values, and the
+      # table names must resolve per target (dev_<user>_airbnb in dev, airbnb in prod).
+      # Pull UI edits back with scripts/pull_genie_space.py; do not edit by hand.
+      serialized_space: |
+        {
+          "data_sources": {
+            "tables": [
+              {
+                "column_configs": [
+                  {
+                    "column_name": "availability_ratio"
+                  },
+                  {
+                    "column_name": "calendar_date",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "host_type",
+                    "description": [
+                      "Superhost status of the listing's host, with the values 'Superhost' and 'Not Superhost'. Use this dimension for any question about Superhosts in the availability metrics."
+                    ],
+                    "enable_entity_matching": true,
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "is_available",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "listing_id"
+                  },
+                  {
+                    "column_name": "minimum_nights"
+                  },
+                  {
+                    "column_name": "neighbourhood",
+                    "enable_entity_matching": true,
+                    "enable_format_assistance": true
+                  }
+                ],
+                "identifier": "${var.catalog}.${resources.schemas.schema.name}.availability_metrics"
+              },
+              {
+                "column_configs": [
+                  {
+                    "column_name": "has_profile_pic",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "host_about"
+                  },
+                  {
+                    "column_name": "host_id"
+                  },
+                  {
+                    "column_name": "host_location",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "host_name",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "host_size_band",
+                    "enable_entity_matching": true,
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "host_tenure_years"
+                  },
+                  {
+                    "column_name": "identity_verified",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "is_superhost",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "platform_listings_count"
+                  },
+                  {
+                    "column_name": "sf_listings_count"
+                  }
+                ],
+                "identifier": "${var.catalog}.${resources.schemas.schema.name}.dim_host"
+              },
+              {
+                "column_configs": [
+                  {
+                    "column_name": "accommodates"
+                  },
+                  {
+                    "column_name": "amenities"
+                  },
+                  {
+                    "column_name": "availability_30",
+                    "exclude": true
+                  },
+                  {
+                    "column_name": "availability_365",
+                    "exclude": true
+                  },
+                  {
+                    "column_name": "availability_60",
+                    "exclude": true
+                  },
+                  {
+                    "column_name": "availability_90",
+                    "exclude": true
+                  },
+                  {
+                    "column_name": "bathrooms"
+                  },
+                  {
+                    "column_name": "bedrooms"
+                  },
+                  {
+                    "column_name": "beds"
+                  },
+                  {
+                    "column_name": "description"
+                  },
+                  {
+                    "column_name": "first_review",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "has_availability",
+                    "exclude": true
+                  },
+                  {
+                    "column_name": "host_id"
+                  },
+                  {
+                    "column_name": "is_hotel",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "last_review",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "latitude",
+                    "exclude": true
+                  },
+                  {
+                    "column_name": "license",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "license_status",
+                    "enable_entity_matching": true,
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "listing_id"
+                  },
+                  {
+                    "column_name": "listing_url",
+                    "exclude": true
+                  },
+                  {
+                    "column_name": "longitude",
+                    "exclude": true
+                  },
+                  {
+                    "column_name": "maximum_nights"
+                  },
+                  {
+                    "column_name": "minimum_nights"
+                  },
+                  {
+                    "column_name": "name"
+                  },
+                  {
+                    "column_name": "neighbourhood",
+                    "enable_entity_matching": true,
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "nightly_price"
+                  },
+                  {
+                    "column_name": "number_of_reviews"
+                  },
+                  {
+                    "column_name": "price_quote_checkin_date",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "price_quote_checkout_date",
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "property_type",
+                    "enable_entity_matching": true,
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "published_occupancy_l365d"
+                  },
+                  {
+                    "column_name": "published_revenue_l365d"
+                  },
+                  {
+                    "column_name": "review_score_accuracy"
+                  },
+                  {
+                    "column_name": "review_score_checkin"
+                  },
+                  {
+                    "column_name": "review_score_cleanliness"
+                  },
+                  {
+                    "column_name": "review_score_communication"
+                  },
+                  {
+                    "column_name": "review_score_location"
+                  },
+                  {
+                    "column_name": "review_score_rating"
+                  },
+                  {
+                    "column_name": "review_score_value"
+                  },
+                  {
+                    "column_name": "room_type",
+                    "enable_entity_matching": true,
+                    "enable_format_assistance": true
+                  },
+                  {
+                    "column_name": "stay_type",
+                    "enable_entity_matching": true,
+                    "enable_format_assistance": true
+                  }
+                ],
+                "identifier": "${var.catalog}.${resources.schemas.schema.name}.dim_listing"
+              }
+            ]
+          },
+          "version": 2
+        }
