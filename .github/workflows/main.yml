@@ -32,8 +32,11 @@ jobs:
       - name: Install Databricks CLI
         uses: databricks/setup-cli@v1.19.0
 
-      - name: Deploy
-        run: databricks bundle deploy -t dev
+      # Two passes: Genie Agents check that every source table exists when they are
+      # created, so the agents deploy only after the jobs below have built the tables
+      # and metric views. Pass 1 selects every resource those jobs need.
+      - name: Deploy data layer
+        run: databricks bundle deploy -t dev --select schemas.source_schema,schemas.schema,volumes.files,volumes.documents,jobs.setup_workspace,pipelines.airbnb_pipeline,jobs.deploy_metric_views,jobs.tests
 
       - name: Load source files # Idempotent
         run: databricks bundle run setup_workspace -t dev
@@ -46,3 +49,6 @@ jobs:
 
       - name: Run tests
         run: databricks bundle run tests -t dev
+
+      - name: Deploy agents
+        run: databricks bundle deploy -t dev
