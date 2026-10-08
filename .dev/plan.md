@@ -51,12 +51,12 @@ Open decisions: D4 (apps in both targets or prod only, leaning prod-only), D9, D
 | Local repo | `~/Documents/dbx/databricks-genie-in-production`, remote `origin` on GitHub; branches `main` (deploys dev through CI) and `release` (deploys prod through CI) |
 | Workspace | Azure Databricks, host `adb-7405615411129521.1.azuredatabricks.net`, catalog `genie_reference`, warehouse `Serverless Starter Warehouse`. CLI profiles: `genie-prod-me` (author) and `genie-prod-sp` (service principal `dab_principal`, application ID `47d22b7a-8f16-43cb-93c5-590e5d89e8b9`). Always pass `--profile`; never pick one for the user. |
 | Schemas | `airbnb` and `raw` (prod, owned by the service principal); `dev_tothz_*` (author's dev); `dev_dab_principal_*` (CI's dev copy) |
-| Bundle | `bundle/`: `databricks.yml`, `scripts.yml`, `resources/` (`schemas.yml`, `airbnb_pipeline.yml`, `setup_workspace.job.yml`, `metric_views.job.yml`, `tests.job.yml`), `src/` (`pipeline/`, `metric_views/`, `tests/`, `setup/`) |
+| Bundle | `bundle/`: `databricks.yml`, `scripts.yml`, `resources/` (`schemas.yml`, `airbnb_pipeline.yml`, `setup_workspace.job.yml`, `metric_views.job.yml`, `tests.job.yml`, `market_analyst.genie_space.yml`), `src/` (`pipeline/`, `metric_views/`, `tests/`, `setup/`), `scripts/` (`pull_genie_space.py`, `run_genie_eval.py`; run locally with `uv run bundle/scripts/<script> <key> -t dev --profile <profile>`) |
 | CI/CD | `.github/workflows/{pr,main,release}.yml`; GitHub environments `ci` and `prod`; as-built notes in `.dev/cicd.md` |
 | Requirements and risks | `docs/01-requirements-and-risks.md` (draft v0.4, 2026-10-08) |
 | Architecture and build spec | `docs/02-architecture.md` (agent sources in section 2, metric view designs in section 3) |
 | Research appendices | `docs/research/{genie-agents,metric-views,bundles,agent-framework,dataset}.md` (2026-10-01) |
-| Claude plan, notes, scratch | `.dev/` (this file is `.dev/plan.md`) |
+| Claude plan, notes, scratch | `.dev/` (this file is `.dev/plan.md`; `.dev/course-notes.md` collects what each phase taught, for the course outline) |
 | Databricks courseware for reference | `~/Documents/dbx/` sibling folders (Data Engineering, Spark, GenAI, ML, Advanced DE tracks) |
 | Dataset mirror (author-side) | `s3://dbx-data-public/airbnb-sf/`: `listings.csv`, `calendar.csv`, summary `reviews.csv`, CC BY 4.0 `LICENSE.md`, and `documents/` with the 32 PDFs from `tools/generate_documents.py` (sync: `aws s3 sync build/documents s3://dbx-data-public/airbnb-sf/documents/ --profile tz --delete`). Snapshot 2026-06-14, uploaded 2026-10-02. Bucket policy `.dev/s3-bucket-policy.json`: objects public, anonymous listing only under `airbnb-sf/`. Students still download from Inside Airbnb (`docs/research/dataset.md`) |
 
@@ -70,8 +70,8 @@ No fixed dates (dropped 2026-10-08, D15). Each component goes into the bundle an
 | 2 | Data and pipeline | done | Files in volumes, five gold tables with comments and constraints, PDFs generated |
 | 3 | Metric views | reduced (D14) | `availability_metrics` deployed by the `deploy_metric_views` job; more views only when Agent A curation shows a need |
 | 4 | CI/CD and tests | done | PR validates, merge to `main` deploys dev and runs the tests, merge to `release` deploys prod; all green on GitHub |
-| 5 | Genie Agent A | in progress | Chat mode on metric views and gold tables; curated, 6 benchmarks (D16) passing the 80% CI gate; in the bundle and deployed by CI |
-| 6 | Genie Agent B | | Agent mode on the 32 PDFs in the `documents` volume; one benchmark per document; in the bundle and deployed by CI |
+| 5 | Genie Agent A | done | Chat mode on metric views and gold tables; curated, 6 benchmarks (D16) passing the 80% CI gate; in the bundle and deployed by CI |
+| 6 | Genie Agent B | next | Agent mode on the 32 PDFs in the `documents` volume; one benchmark per document; in the bundle and deployed by CI |
 | 7 | App 1 | | Databricks App on the Genie Conversation API with user authorization (OBO); in the bundle |
 | 8 | Orchestrator app | | Agent on Databricks Apps calling both Genie Agents through managed MCP servers; in the bundle |
 | 9 | Evaluation | | Genie benchmarks per agent and `mlflow.genai.evaluate` for orchestrator routing, run by a manual or scheduled workflow (not a merge gate) |
@@ -83,12 +83,13 @@ Stretch (only once core is done): S1 Model Serving deploy, S3 materialized metri
 
 <!-- PROGRESS MARKER. Keep this section current (rule 1). Format: Now / Done / Next / Blocked. -->
 
-**Now:** 2026-10-08. Phases 1 to 4 are done (phase 3 reduced to one metric view by D14). Phase 5 is nearly done: Agent A (`market_analyst`) is in the bundle and deployed by CI to both dev copies and to prod (PR #6); `main.yml` runs its 6 benchmarks after deploying (`bundle/scripts/run_genie_eval.py`) and fails below 80%; it scores 6/6. Next: check the volumes preview for Agent B (R-1).
+**Now:** 2026-10-08. Phases 1 to 5 are done (phase 3 reduced to one metric view by D14). Agent A (`market_analyst`) is deployed by CI to both dev copies and to prod; `main.yml` runs its 6 benchmarks after deploying and fails below 80%; it scores 6/6. Next is phase 6, Agent B, starting with the volumes preview check (R-1).
 
 **Done:**
 - **Phase 1, requirements and research** (2026-10-01 to 2026-10-08): requirements v0.1 to v0.4, research appendices, architecture doc. D1 revised 2026-10-02 (Free Edition to a standard Azure workspace; Free Edition has no on-demand clusters for developing SDP streaming tables). D14 and D15 on 2026-10-08: agent sources split by type, App 1 kept, each component bundled and deployed by CI as it is built, no fixed dates.
 - **Phase 2, data and pipeline** (2026-10-02 to 2026-10-05): dataset mirrored to S3; 32 PDFs generated by `tools/generate_documents.py` (static inputs, not a job task); `setup_workspace` job copies files and PDFs into the target's volumes; `airbnb_pipeline` builds bronze (3 streaming tables), silver (3 materialized views) and gold: `dim_host` 3,499, `dim_listing` 7,332, `fact_calendar` 2,676,180, `fact_review` 434,102, `fact_listing_activity` 7,332, every column commented, PK/FK `RELY`. `fact_listing_activity` reproduces Inside Airbnb's published occupancy for all listings and revenue within $1 for all 5,932 priced ones. Prod managers group as bundle scripts (`scripts.yml`).
 - **Phase 3, metric views** (2026-10-07 to 2026-10-08): `availability_metrics` (renamed from `booking_reference` on 2026-10-08) over `fact_calendar` with a snowflake join to `dim_listing` and `dim_host`, deployed by the `deploy_metric_views` job (D5).
+- **Phase 5, Genie Agent A** (2026-10-08): generated from a UI space, inline `serialized_space` with per-target table names (R-6), pull script `bundle/scripts/pull_genie_space.py`, column configs, 6 benchmarks (D16), General instructions with two output rules, `host_type` 'Unknown' in the metric view, two-pass CI deploy (data layer, jobs, then agents), benchmark gate `bundle/scripts/run_genie_eval.py` in `main.yml` at 80%. Lessons for the course: `.dev/course-notes.md`.
 - **Phase 4, CI/CD and tests** (2026-10-08): `pr.yml`, `main.yml`, `release.yml` and the `tests` job, all green on GitHub including the first prod release. Prod handed to the service principal. Details and how to switch to federation: `.dev/cicd.md`.
 
 **Findings that still matter:**
@@ -99,10 +100,9 @@ Stretch (only once core is done): S1 Model Serving deploy, S3 materialized metri
 - CI and identity: whoever deploys first owns the objects; prod is deployed only as the service principal. Reading raw `s3a://` paths needs `SELECT ON ANY FILE` for non-admins (granted to the service principal; listed only under `hive_metastore`). The author is not an account admin, so CI uses an OAuth secret instead of federation.
 
 **Next:**
-1. Phase 5, Genie Agent A: deployed to dev, CI's dev and prod (PR #6), 6 benchmarks at 6/6, CI gate at 80% (D16: no more benchmarks). Left: settle `host_type` for hosts with NULL `is_superhost` (the metric view labels them 'Not Superhost'; `dim_host` queries drop them); short module notes for the curation steps taken (column configs, Output instruction, the NULL-filter rule, the reverted 'listings exclude hotels' rule).
-2. Phase 6, Genie Agent B: **[verify]** the "Analyze files in volumes" preview in the workspace (R-1); one benchmark question per PDF (`bundle/eval/benchmarks_host_ops.json`); bundle and CI as for Agent A.
-3. Phases 7 to 9 (App 1, orchestrator, evaluation workflow), see section 4. Settle D4 (apps in both targets or prod only) before phase 7.
-4. Leftovers, any time: drop the old `booking_reference` views by hand in `dev_tothz_airbnb`, `dev_dab_principal_airbnb` and `airbnb`; `setup_workspace` over HTTPS so the `ANY FILE` grant can be revoked; a bootstrap script for a fresh workspace (catalog grants, deploy, setup run); GitHub repo description and topics.
+1. Phase 6, Genie Agent B: **[verify]** the "Analyze files in volumes" preview in the workspace (R-1) first; then the Agent A pattern: UI space, `bundle generate genie-space`, inline `serialized_space` with variable names, one benchmark per PDF (evaluation notes, Agent mode), the pull and eval scripts with the new key, the key added to the eval step in `main.yml`.2. Phases 7 to 9 (App 1, orchestrator, evaluation workflow), see section 4. Settle D4 (apps in both targets or prod only) before phase 7.
+2. Phases 7 to 9 (App 1, orchestrator, evaluation workflow), see section 4. Settle D4 (apps in both targets or prod only) before phase 7. The orchestrator evaluation can reuse Agent A's benchmark questions labelled with the expected agent (`.dev/course-notes.md`, last section).
+3. Leftovers, any time: drop the old `booking_reference` metric views by hand in `dev_tothz_airbnb`, `dev_dab_principal_airbnb` and `airbnb` (all three still exist); empty the trashed scratch Genie space; `setup_workspace` over HTTPS so the `ANY FILE` grant can be revoked; a bootstrap script for a fresh workspace (catalog grants, deploy, setup run); GitHub repo description and topics.
 
 **Blocked:** nothing. Workload identity federation for CI waits on an account admin; CI uses an OAuth client secret until then.
 
