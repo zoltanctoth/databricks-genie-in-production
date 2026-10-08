@@ -12,6 +12,129 @@ resources:
       # Pull UI edits back with scripts/pull_genie_space.py; do not edit by hand.
       serialized_space: |
         {
+          "benchmarks": {
+            "questions": [
+              {
+                "answer": [
+                  {
+                    "content": [
+                      "SELECT stay_type,\n",
+                      "       AVG(nightly_price) AS avg_nightly_price,\n",
+                      "       AVG(number_of_reviews) AS avg_reviews\n",
+                      "FROM ${var.catalog}.${resources.schemas.schema.name}.dim_listing\n",
+                      "GROUP BY stay_type\n",
+                      "ORDER BY stay_type"
+                    ],
+                    "format": "SQL"
+                  }
+                ],
+                "evaluation_note": [
+                  "Short-term listings have higher average nightly prices and more reviews than long-term listings. Should group by stay_type and show both price and review metrics."
+                ],
+                "id": "01f1c2f60df01b5a9104a3acce4d8c56",
+                "question": [
+                  "How do short-term and long-term listings compare in average nightly price and number of reviews?"
+                ]
+              },
+              {
+                "answer": [
+                  {
+                    "content": [
+                      "SELECT neighbourhood,\n",
+                      "       MEASURE(availability_ratio) AS availability_rate\n",
+                      "FROM ${var.catalog}.${resources.schemas.schema.name}.availability_metrics\n",
+                      "GROUP BY neighbourhood\n",
+                      "ORDER BY availability_rate DESC\n",
+                      "LIMIT 5"
+                    ],
+                    "format": "SQL"
+                  }
+                ],
+                "evaluation_note": [
+                  "Should return 5 neighborhoods ranked by availability ratio using the availability_metrics metric view."
+                ],
+                "id": "01f1c2f60dda1b6abf3948b6292b5084",
+                "question": [
+                  "Which 5 neighborhoods have the highest availability ratio?"
+                ]
+              },
+              {
+                "answer": [
+                  {
+                    "content": [
+                      "SELECT host_type, MEASURE(availability_ratio) AS availability_rate\n",
+                      "FROM ${var.catalog}.${resources.schemas.schema.name}.availability_metrics\n",
+                      "GROUP BY host_type\n",
+                      "ORDER BY availability_rate DESC"
+                    ],
+                    "format": "SQL"
+                  }
+                ],
+                "id": "01f1c2f53b1014748d41eb3efdc986ec",
+                "question": [
+                  "How does the availability rate differ between Superhosts and regular hosts?"
+                ]
+              },
+              {
+                "answer": [
+                  {
+                    "content": [
+                      "SELECT room_type,\n",
+                      "       AVG(nightly_price) AS avg_nightly_price\n",
+                      "FROM ${var.catalog}.${resources.schemas.schema.name}.dim_listing\n",
+                      "WHERE nightly_price IS NOT NULL\n",
+                      "GROUP BY room_type\n",
+                      "ORDER BY avg_nightly_price DESC"
+                    ],
+                    "format": "SQL"
+                  }
+                ],
+                "id": "01f1c2f512cf18f4a478cbc24b184eb0",
+                "question": [
+                  "What is the average nightly price by room type?"
+                ]
+              },
+              {
+                "answer": [
+                  {
+                    "content": [
+                      "SELECT neighbourhood,\n",
+                      "       AVG(nightly_price) AS avg_nightly_price\n",
+                      "FROM ${var.catalog}.${resources.schemas.schema.name}.dim_listing\n",
+                      "WHERE nightly_price IS NOT NULL\n",
+                      "GROUP BY neighbourhood\n",
+                      "ORDER BY avg_nightly_price DESC\n",
+                      "LIMIT 5"
+                    ],
+                    "format": "SQL"
+                  }
+                ],
+                "id": "01f1c2f504ad14ffa1c958d26c3ac776",
+                "question": [
+                  "What are the top 5 most expensive neighborhoods by average nightly price?"
+                ]
+              },
+              {
+                "answer": [
+                  {
+                    "content": [
+                      "SELECT COUNT(*) AS short_term_listings,\n",
+                      "       100.0 * COUNT_IF(license_status = 'certificate') / COUNT(*) AS certificate_pct\n",
+                      "FROM ${var.catalog}.${resources.schemas.schema.name}.dim_listing"
+                    ],
+                    "format": "SQL"
+                  }
+                ],
+                "evaluation_note": [
+                  ""
+                ],
+                "id": "01f1c2f4e939171d97afc36f1d977e92",
+                "question": [
+                  "How many short-term rental listings are in San Francisco, and what percentage have a certificate license?"
+                ]
+              }
+            ]
+          },
           "data_sources": {
             "tables": [
               {
@@ -245,6 +368,17 @@ resources:
                   }
                 ],
                 "identifier": "${var.catalog}.${resources.schemas.schema.name}.dim_listing"
+              }
+            ]
+          },
+          "instructions": {
+            "text_instructions": [
+              {
+                "content": [
+                  "## Output\n",
+                  "- Return only the measures the question asks for, plus the columns it groups by. Do not add counts or other extra columns unless asked."
+                ],
+                "id": "01f1c2fb9f831f5bbb8b5c13f02b8165"
               }
             ]
           },
