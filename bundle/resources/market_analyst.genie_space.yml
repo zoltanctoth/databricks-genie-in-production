@@ -125,9 +125,6 @@ resources:
                     "format": "SQL"
                   }
                 ],
-                "evaluation_note": [
-                  ""
-                ],
                 "id": "01f1c2f4e939171d97afc36f1d977e92",
                 "question": [
                   "How many short-term rental listings are in San Francisco, and what percentage have a certificate license?"

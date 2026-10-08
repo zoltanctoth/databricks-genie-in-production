@@ -52,3 +52,9 @@ jobs:
 
       - name: Deploy agents
         run: databricks bundle deploy -t dev
+
+      # Runs every benchmark stored in the agent, writes the report to the job
+      # summary and fails the build below 80% accuracy. Only dev is evaluated: a
+      # release is a merge of a main commit that already passed this step.
+      - name: Evaluate Genie agents
+        run: python3 scripts/run_genie_eval.py market_analyst -t dev --min-accuracy 0.8
