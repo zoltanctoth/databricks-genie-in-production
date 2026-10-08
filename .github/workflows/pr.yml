@@ -1,0 +1,49 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    environment: ci
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    defaults:
+      run:
+        working-directory: bundle
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Pinned to the CLI version used locally.
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@v1.19.0
+
+      - name: Check authentication
+        run: databricks current-user me
+
+      - name: Validate bundle
+        run: |
+          databricks bundle validate --strict -t dev
+          databricks bundle validate --strict -t prod
+
+      # The plan lists every create, update, recreate and delete that deploying
+      # this commit to prod would cause. It is written to the run's summary page
+      # so reviewers see the blast radius before merging.
+      - name: Plan prod deployment
+        run: |
+          {
+            echo "## Prod deployment plan"
+            echo '```'
+            databricks bundle plan -t prod
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

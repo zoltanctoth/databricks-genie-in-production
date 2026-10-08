@@ -1,0 +1,56 @@
+# Stage 3 of 3. Merge to release: deploy prod as the service principal, then
+# run the same chain as main.yml, with the tests as a smoke test. The prod
+# GitHub environment only allows the release branch, so no other branch can
+# read the prod secret.
+# Stage 1: pr.yml. Stage 2: main.yml. Design: .dev/cicd-and-tests-proposal.md.
+#
+# One-time setup: a GitHub environment named `prod`, deployment branches limited
+# to `release`, with the same variables and secret as `ci` (see pr.yml).
+
+name: Deploy prod
+
+on:
+  push:
+    branches: [release]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    defaults:
+      run:
+        working-directory: bundle
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@v1.19.0
+
+      - name: Deploy
+        run: databricks bundle deploy -t prod
+
+      # Idempotent; on the first release it fills the empty prod volumes.
+      - name: Load source files
+        run: databricks bundle run setup_workspace -t prod
+
+      - name: Run pipeline
+        run: databricks bundle run airbnb_pipeline -t prod
+
+      - name: Create metric views
+        run: databricks bundle run deploy_metric_views -t prod
+
+      - name: Smoke test
+        run: databricks bundle run tests -t prod

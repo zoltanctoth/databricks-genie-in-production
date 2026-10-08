@@ -1,0 +1,48 @@
+name: Deploy dev and Run tests
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run at a time: two runs would deploy to and run against the same schemas.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    environment: ci
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    defaults:
+      run:
+        working-directory: bundle
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@v1.19.0
+
+      - name: Deploy
+        run: databricks bundle deploy -t dev
+
+      - name: Load source files # Idempotent
+        run: databricks bundle run setup_workspace -t dev
+
+      - name: Run pipeline
+        run: databricks bundle run airbnb_pipeline -t dev
+
+      - name: Create metric views
+        run: databricks bundle run deploy_metric_views -t dev
+
+      - name: Run tests
+        run: databricks bundle run tests -t dev
