@@ -120,13 +120,11 @@ resources:
                     "content": [
                       "SELECT COUNT(*) AS short_term_listings,\n",
                       "       100.0 * COUNT_IF(license_status = 'certificate') / COUNT(*) AS certificate_pct\n",
-                      "FROM ${var.catalog}.${resources.schemas.schema.name}.dim_listing"
+                      "FROM ${var.catalog}.${resources.schemas.schema.name}.dim_listing\n",
+                      "WHERE stay_type = 'short_term'"
                     ],
                     "format": "SQL"
                   }
-                ],
-                "evaluation_note": [
-                  ""
                 ],
                 "id": "01f1c2f4e939171d97afc36f1d977e92",
                 "question": [
@@ -376,7 +374,8 @@ resources:
               {
                 "content": [
                   "## Output\n",
-                  "- Return only the measures the question asks for, plus the columns it groups by. Do not add counts or other extra columns unless asked."
+                  "- Return only the measures the question asks for, plus the columns it groups by. Do not add counts or other extra columns unless asked.\n",
+                  "- Do not add `IS NOT NULL` filters unless the question asks for them. Aggregates such as AVG and SUM already skip NULLs, and a NULL filter on one column changes every other measure in the query."
                 ],
                 "id": "01f1c2fb9f831f5bbb8b5c13f02b8165"
               }
