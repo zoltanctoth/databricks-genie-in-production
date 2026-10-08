@@ -64,6 +64,7 @@ resources:
                     "content": [
                       "SELECT host_type, MEASURE(availability_ratio) AS availability_rate\n",
                       "FROM ${var.catalog}.${resources.schemas.schema.name}.availability_metrics\n",
+                      "WHERE host_type IN ('Superhost', 'Not Superhost')\n",
                       "GROUP BY host_type\n",
                       "ORDER BY availability_rate DESC"
                     ],
@@ -147,7 +148,7 @@ resources:
                   {
                     "column_name": "host_type",
                     "description": [
-                      "Superhost status of the listing's host, with the values 'Superhost' and 'Not Superhost'. Use this dimension for any question about Superhosts in the availability metrics."
+                      "Superhost status of the listing's host, with the values 'Superhost', 'Not Superhost' and 'Unknown' (status not reported). Use this dimension for any question about Superhosts in the availability metrics."
                     ],
                     "enable_entity_matching": true,
                     "enable_format_assistance": true

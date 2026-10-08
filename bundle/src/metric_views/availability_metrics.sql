@@ -65,8 +65,8 @@ dimensions:
       - reservation status
       - room status
   - name: host_type
-    expr: IF(dim_listings.dim_host.is_superhost, 'Superhost', 'Not Superhost')
-    comment: Indicates whether a host is classified as a Superhost based on their performance metrics. Use this dimension to filter or group listings by host type for analysis of host quality and customer experience.
+    expr: "CASE WHEN dim_listings.dim_host.is_superhost THEN 'Superhost' WHEN NOT dim_listings.dim_host.is_superhost THEN 'Not Superhost' ELSE 'Unknown' END"
+    comment: "Superhost status of the listing's host: 'Superhost', 'Not Superhost', or 'Unknown' when Inside Airbnb does not report the status. Use this dimension to filter or group listings by host type."
     display_name: Is Superhost
     synonyms:
       - superhost status
