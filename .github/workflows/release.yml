@@ -2,7 +2,7 @@
 # run the same chain as main.yml, with the tests as a smoke test. The prod
 # GitHub environment only allows the release branch, so no other branch can
 # read the prod secret.
-# Stage 1: pr.yml. Stage 2: main.yml. Design: .dev/cicd-and-tests-proposal.md.
+# Stage 1: pr.yml. Stage 2: main.yml. Design: .dev/cicd.md.
 #
 # One-time setup: a GitHub environment named `prod`, deployment branches limited
 # to `release`, with the same variables and secret as `ci` (see pr.yml).

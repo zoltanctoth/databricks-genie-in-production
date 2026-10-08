@@ -1,4 +1,4 @@
--- Metric view booking_reference over gold.fact_calendar, dim_listing and dim_host.
+-- Metric view availability_metrics over gold.fact_calendar, dim_listing and dim_host.
 --
 -- Run by the deploy_metric_views job as a sql_task on a SQL warehouse, not by the
 -- pipeline: SDP accepts only CREATE MATERIALIZED VIEW / STREAMING TABLE statements,
@@ -10,7 +10,7 @@
 USE CATALOG IDENTIFIER({{catalog}});
 USE SCHEMA IDENTIFIER({{schema}});
 
-CREATE OR REPLACE VIEW booking_reference
+CREATE OR REPLACE VIEW availability_metrics
 WITH METRICS
 LANGUAGE YAML
 AS $$
@@ -73,15 +73,15 @@ dimensions:
       - host classification
       - host quality
       - superhost designation
-  - name: neighborhood
+  - name: neighbourhood
     expr: dim_listings.neighbourhood
-    comment: Identifies the neighborhood where each listing is located. Use this dimension to analyze listing performance, trends, or metrics by geographic area within the city.
-    display_name: Neighborhood
+    comment: Identifies the neighbourhood where each listing is located. Use this dimension to analyze listing performance, trends, or metrics by geographic area within the city.
+    display_name: Neighbourhood
     synonyms:
+      - neighborhood
       - area
       - district
       - locality
-      - neighborhood name
 
 measures:
   - name: availability_ratio

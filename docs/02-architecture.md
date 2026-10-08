@@ -12,7 +12,7 @@ Contents:
 
 ## 0. The picture in one paragraph
 
-Three CSV files and 32 PDFs land in two Unity Catalog volumes. A serverless Lakeflow Spark Declarative Pipeline turns the CSVs into three bronze streaming tables, three typed silver tables, and a five-table gold layer: two dimensions, two event facts, and one listing-grain activity fact that combines reviews, calendar and listing attributes. Four metric views sit on gold and own every business definition. Two Genie Agents consume them: a Chat-mode market analyst and an Agent-mode host-operations agent that also reads the PDFs. An orchestrator app on Databricks Apps routes questions between the two agents through their managed MCP servers.
+Three CSV files and 32 PDFs land in two Unity Catalog volumes. A serverless Lakeflow Spark Declarative Pipeline turns the CSVs into three bronze streaming tables, three typed silver tables, and a five-table gold layer: two dimensions, two event facts, and one listing-grain activity fact that combines reviews, calendar and listing attributes. Metric views sit on gold and own the business definitions they cover; today that is `availability_metrics` (availability), and more are added only when curation shows a need (D14, 2026-10-08). Two Genie Agents split by source type: a Chat-mode market analyst over the metric views and gold tables, and an Agent-mode host-operations agent over the PDFs. An orchestrator app on Databricks Apps routes questions between the two agents through their managed MCP servers.
 
 ```mermaid
 flowchart LR
@@ -25,17 +25,13 @@ flowchart LR
     S --> DL[dim_listing] & DH[dim_host] & FC[fact_calendar] & FR[fact_review]
     DL & FC & FR --> FA[fact_listing_activity]
   end
-  subgraph MV["Metric views (SQL task)"]
-    M1[market_metrics]
-    M2[availability_metrics]
-    M3[review_activity_metrics]
-    M4[compliance_metrics]
+  subgraph MV["Metric views (job SQL task)"]
+    M1[availability_metrics]
   end
-  FA --> M1 & M4
-  FC --> M2
-  FR --> M3
-  M1 & M2 & M3 & DL --> GA[Genie Agent A<br/>SF Market Analyst<br/>Chat mode]
-  M4 & DL & DH & P --> GB[Genie Agent B<br/>Host Ops and Compliance<br/>Agent mode]
+  FC --> M1
+  DL & DH --> M1
+  M1 & DL & DH --> GA[Genie Agent A<br/>SF Market Analyst<br/>Chat mode]
+  P --> GB[Genie Agent B<br/>Host Ops and Compliance<br/>Agent mode]
   GA & GB -->|managed MCP| ORCH[App 2: orchestrator<br/>MLflow AgentServer]
   GA -->|Conversation API, OBO| APP1[App 1: Genie chat]
   F --> B
@@ -144,39 +140,52 @@ Genie sizing guidance: five or fewer objects per agent is the recommended starti
 
 ### Agent A: San Francisco Market Analyst (Chat mode)
 
+Sources decided 2026-10-08 (D14): the metric view plus only those gold tables that do not expose a fact a second time. Three objects.
+
 | Source | Role in the agent |
 |---|---|
-| `market_metrics` | Supply, price, estimated demand and revenue by neighbourhood, room type, host attributes |
-| `availability_metrics` | Forward-looking open and blocked nights by month |
-| `review_activity_metrics` | Guest activity over time, trailing twelve months, quarter over quarter |
-| `dim_listing` | Row-level questions: "show the ten most expensive entire homes in Noe Valley", "which listings sleep eight or more" |
+| `availability_metrics` (metric view) | The single source for availability: availability ratio by date, neighbourhood, Superhost status, minimum nights. Joins `fact_calendar` to `dim_listing` and `dim_host` |
+| `dim_listing` | Listing attributes and row-level questions ("the ten most expensive entire homes in Noe Valley", "which listings sleep eight or more"), review scores and counts, and Inside Airbnb's published occupancy and revenue estimates (`published_occupancy_l365d`, `published_revenue_l365d`) |
+| `dim_host` | Host attributes: Superhost status, portfolio size, tenure |
 
-Typical questions: median nightly price by neighbourhood for entire homes; which neighbourhoods have the highest superhost share; how did review activity change quarter over quarter in the Mission; what share of listings is open over Thanksgiving week; estimated revenue per listing by room type excluding hotels.
+Left out because they would expose a fact twice:
 
-Curation order (the Databricks-recommended order, and the order the course teaches): Unity Catalog comments and constraints, then metric view metadata (`comment`, `synonyms`, `display_name`, `format`), then column configs (entity matching on `neighbourhood`, `room_type`, `property_type`; hide `latitude`, `longitude`, `listing_url`), then example SQL, then a short instruction block for the two ambiguities that are not encodable elsewhere: "listings" excludes hotels unless asked, and "occupancy" means the estimated model, not the calendar.
+| Object | Overlap |
+|---|---|
+| `fact_calendar` | The source of `availability_metrics` |
+| `fact_listing_activity` | `open_nights_next_*` and `blocked_nights_next_365` are calendar availability again; its review counts and estimates duplicate `dim_listing` |
+| `fact_review` | Review counts already in `dim_listing.number_of_reviews` |
+| `dim_listing` columns `has_availability`, `availability_30`, `availability_60`, `availability_90`, `availability_365` | Inside Airbnb's own availability counts; hidden in the agent's column settings so availability comes only from the metric view |
+
+Typical questions: median nightly price by neighbourhood for entire homes; which neighbourhoods have the highest Superhost share; published estimated revenue per listing by room type excluding hotels; what share of nights is open next month in the Mission; which hosts have more than ten listings.
+
+Curation order (the Databricks-recommended order, and the order the course teaches): Unity Catalog comments and constraints, then metric view metadata (`comment`, `synonyms`, `display_name`, `format`), then column configs (entity matching on `neighbourhood`, `room_type`, `property_type`; hide the availability columns above and `latitude`, `longitude`, `listing_url`), then example SQL, then a short instruction block for the definitions that are not encodable elsewhere: "listings" excludes hotels unless asked, and "occupancy" means the published estimate, not the calendar. Joins come from the PK/FK constraints declared in gold.
+
+Teaching point: one fact, one place. When the same number can be computed two ways (calendar availability in the metric view and Inside Airbnb's `availability_365` in the listing table), Genie may pick either and the answers disagree. Excluding tables and hiding columns removes the second path; a new metric view is the fix when Agent A needs a measure that only a fact table holds (D14).
 
 ### Agent B: Host Operations and Compliance (Agent mode)
 
+Sources decided 2026-10-08 (D14): the documents only.
+
 | Source | Role in the agent |
 |---|---|
-| `compliance_metrics` | Registration status, short-stay exposure, the 90-night cap, by neighbourhood, host and license status |
-| `dim_host` | Host lookups: portfolio size, superhost, tenure |
-| `dim_listing` | Listing-level detail behind a compliance finding |
-| `documents` volume (32 PDFs) | House rules per host, regulation text, neighbourhood narratives |
+| `documents` volume (32 PDFs) | Ten neighbourhood market reports, twenty host house-rules sheets, the San Francisco short-term rental regulation summary, the data dictionary |
 
-Typical questions: which hosts with five or more listings have unregistered short-term listings; how many entire homes exceeded 90 estimated nights without a certificate; what do the house rules of the host with the most listings in the Mission say about parties, and how many of that host's listings are long-term; what does the ordinance say about the 30-night boundary.
+Typical questions: what do the house rules of host X say about parties and quiet hours; what does the ordinance say about the 30-night boundary and the 90-night cap for unhosted stays; how does the Mission market report describe demand; what does `estimated_occupancy_l365d` mean according to the data dictionary.
 
-Agent mode is required because answers combine SQL over the metric view with retrieval from the volume, and benchmarks are judged by the LLM judge with evaluation notes rather than exact SQL.
+Agent mode is required for answers from files in a volume **[verify: the "Analyze files in volumes" preview is enabled in the workspace]**. Benchmarks are judged by the LLM judge with evaluation notes, one question per document.
 
 ### What neither agent sees
 
-Bronze and silver tables, `fact_calendar`, `fact_review` and `fact_listing_activity` as raw tables. The facts are reachable only through the metric views, which removes the biggest hallucination risk (raw rows at the wrong grain) and makes the metric layer the single place a definition can change.
+Bronze and silver tables, `fact_calendar` (Agent A reaches it only through `availability_metrics`), `fact_listing_activity` and `fact_review`. Agent B sees no tables: questions that need both numbers and documents go through the orchestrator, which asks both agents.
 
 ## 3. Metric view definitions
 
 Naming follows the metric view skill: `<subject>_metrics`, no `mv_` prefix. Every view, field and measure carries a `comment`; fields that users name directly carry `synonyms`; money and ratios carry `format`. The YAML below shows the structure and the measures; the committed `.sql` files add the remaining comments.
 
-Deployment: one `bundle/src/sql/metric_views.sql` with `CREATE OR REPLACE VIEW ... WITH METRICS LANGUAGE YAML AS $$ ... $$`, run by a job `sql_task` after the pipeline task, with `catalog` and `schema` job parameters substituted through `EXECUTE IMMEDIATE`, because the YAML `source` must be a fully qualified literal.
+Status 2026-10-08 (D14): only `availability_metrics` (`bundle/src/metric_views/availability_metrics.sql`) is built. The views below are the design for when Agent A curation shows a need for them; It is the `availability_metrics` view of section 3.2 in a smaller form: availability ratio over `fact_calendar` with a snowflake join to `dim_listing` and `dim_host`.
+
+Deployment (D5, verified 2026-10-07): one `.sql` file per view in `bundle/src/metric_views/`, each run by a `sql_task` in the `deploy_metric_views` job. The file starts with `USE CATALOG IDENTIFIER({{catalog}}); USE SCHEMA IDENTIFIER({{schema}});` and the YAML uses bare table names, which resolve against the view's own schema. The pipeline cannot create metric views (it accepts only materialized views and streaming tables).
 
 ### 3.1 `market_metrics`: supply, price, estimated demand
 
@@ -422,8 +431,8 @@ A thin chat UI over the Genie Conversation API against Agent A, with `user_api_s
 | Runtime | MLflow `AgentServer` (FastAPI `/responses`) on Databricks Apps, started from the `agent-openai-agents-sdk-multiagent` template; Medium or Large app size (agents require it) |
 | How the Genie Agents are attached | Each as a managed MCP server at `/api/2.0/mcp/genie/{space_id}`. The orchestrator calls them as tools; it never writes SQL itself |
 | Identity | On-behalf-of the user: `user_api_scopes: [genie]` and `get_user_workspace_client()` inside the request handler. The app's service principal holds `CAN_RUN` on both agents only as a fallback, and a `whoami` tool exposes which identity answered |
-| Routing | A single LLM call with the two MCP tools; the tool descriptions are the agents' own descriptions. Rule of thumb encoded in the system prompt: price, supply, availability and review trends go to the Market Analyst; licenses, hosts, house rules and regulation go to Host Operations; a question that needs both is sent to both and the answers are merged with the SQL of each shown |
-| Conversation state | The orchestrator keeps the chat history; each MCP tool call opens a fresh Genie conversation **[verify in the Day 1 spike: whether the Genie MCP tool accepts a `conversation_id` for follow-ups]** |
+| Routing | A single LLM call with the two MCP tools; the tool descriptions are the agents' own descriptions. Rule of thumb encoded in the system prompt: numbers (price, supply, availability, revenue, reviews, hosts) go to the Market Analyst; house rules, regulation text and neighbourhood narratives go to Host Operations; a question that needs both, such as "which hosts have more than ten listings, and what do their house rules say about parties", is sent to both and the answers are merged, with the SQL and the citations shown |
+| Conversation state | The orchestrator keeps the chat history; each MCP tool call opens a fresh Genie conversation **[verify before phase 8: whether the Genie MCP tool accepts a `conversation_id` for follow-ups]** |
 | Tracing | MLflow autologging on the app's experiment; every request produces a trace with the routing decision, the MCP calls and the SQL each Genie Agent generated |
 | Evaluation | `eval/routing_cases.json`, about 20 questions each labelled with the expected agent or agents, scored by `mlflow.genai.evaluate` with a routing-correctness scorer plus the built-in relevance judge (FR-10) |
 
@@ -461,4 +470,4 @@ Platform facts (Databricks docs, checked 2026-10-05):
 | Genie: 30 sources hard limit, five or fewer recommended; metric views preferred over raw tables; `MEASURE()` rules apply to example SQL | databricks-genie-agents skill v0.2.20 |
 | Genie managed MCP server URL and OBO scopes; AgentServer on Apps; Medium/Large sizes | docs/research/agent-framework.md, verified 2026-10-01 |
 
-Items still marked **[verify]** are run in the Day 1 spike and logged in `.dev/spike-day1.md`.
+Items still marked **[verify]** are checked in the workspace when the phase that needs them starts, and the result is recorded in `.dev/plan.md`.
